@@ -1990,6 +1990,7 @@ bool Parser::MightBeDeclarator(DeclaratorContext Context) {
   case tok::kw_operator:
   case tok::l_paren:
   case tok::star:
+  case tok::starbang:
     return true;
 
   case tok::amp:
@@ -6293,7 +6294,7 @@ void Parser::ParseDeclarator(Declarator &D) {
 
 static bool isPtrOperatorToken(tok::TokenKind Kind, const LangOptions &Lang,
                                DeclaratorContext TheContext) {
-  if (Kind == tok::star || Kind == tok::caret)
+  if (Kind == tok::star || Kind == tok::caret || Kind == tok::starbang)
     return true;
 
   // OpenCL 2.0 and later define this keyword.
@@ -6430,7 +6431,7 @@ void Parser::ParseDeclaratorInternal(Declarator &D,
   SourceLocation Loc = ConsumeToken();  // Eat the *, ^, & or &&.
   D.SetRangeEnd(Loc);
 
-  if (Kind == tok::star || Kind == tok::caret) {
+  if (Kind == tok::star || Kind == tok::caret || Kind == tok::starbang) {
     // Is a pointer.
     DeclSpec DS(AttrFactory);
 
@@ -6442,12 +6443,20 @@ void Parser::ParseDeclaratorInternal(Declarator &D,
                          : AR_GNUAttributesParsedAndRejected);
     ParseTypeQualifierListOpt(DS, Reqs, /*AtomicOrPtrauthAllowed=*/true,
                               !D.mayOmitIdentifier());
+
+    // If this is *!, add _Nonnull attribute
+    if (Kind == tok::starbang) {
+      DS.getAttributes().addNew(PP.getIdentifierInfo("_Nonnull"), Loc,
+                                AttributeScopeInfo(), nullptr, 0,
+                                tok::kw__Nonnull);
+    }
+
     D.ExtendWithDeclSpec(DS);
 
     // Recursively parse the declarator.
     Actions.runWithSufficientStackSpace(
         D.getBeginLoc(), [&] { ParseDeclaratorInternal(D, DirectDeclParser); });
-    if (Kind == tok::star)
+    if (Kind == tok::star || Kind == tok::starbang)
       // Remember that we parsed a pointer type, and remember the type-quals.
       D.AddTypeInfo(DeclaratorChunk::getPointer(
                         DS.getTypeQualifiers(), Loc, DS.getConstSpecLoc(),
