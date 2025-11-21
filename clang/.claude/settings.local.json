@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./test_null_safety.sh:*)",
+      "Bash(clang --version:*)",
+      "Bash(clang:*)",
+      "Bash(locate:*)",
+      "Bash(find:*)",
+      "Bash(./build/bin/clang:*)",
+      "Bash(./safe-cc -c test_suite.c)",
+      "Bash(./run_tests.sh:*)",
+      "Bash(./safe-cc:*)",
+      "Bash(chmod:*)",
+      "Bash(./show_results.sh:*)",
+      "Bash(./bin/clang:*)",
+      "Bash(/tmp/null_safety_test/test_valid:*)",
+      "Bash(cmake:*)",
+      "Bash(./bin/cbang:*)",
+      "Bash(/tmp/test_cbang)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

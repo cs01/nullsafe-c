@@ -4454,13 +4454,16 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         break;
 
       case PointerDeclaratorKind::SingleLevelPointer:
-        // Infer _Nonnull if we are in an assumes-nonnull region.
+        // cbang: Always infer nullability for single-level pointers.
+        // Default to _Nullable unless in an assumes-nonnull region.
+        complainAboutInferringWithinChunk = wrappingKind;
         if (inAssumeNonNullRegion) {
-          complainAboutInferringWithinChunk = wrappingKind;
           inferNullability = NullabilityKind::NonNull;
-          inferNullabilityCS = (context == DeclaratorContext::ObjCParameter ||
-                                context == DeclaratorContext::ObjCResult);
+        } else {
+          inferNullability = NullabilityKind::Nullable;
         }
+        inferNullabilityCS = (context == DeclaratorContext::ObjCParameter ||
+                              context == DeclaratorContext::ObjCResult);
         break;
 
       case PointerDeclaratorKind::CFErrorRefPointer:
