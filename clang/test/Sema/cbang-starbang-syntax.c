@@ -2,6 +2,7 @@
 
 // Test the *! (starbang) syntax for non-nullable pointers
 
+#include <stdio.h>
 typedef int*! nonnull_int_ptr;
 typedef int* nullable_int_ptr;
 
@@ -24,9 +25,9 @@ int* returns_nullable(void) {
 
 void test_basic_syntax(void) {
     int value = 10;
-    int*! nonnull_ptr = &value;
+    int*! nonnull_ptr = NULL;
     int* nullable_ptr = &value;
-
+    printf("%d %d", *nonnull_ptr, *nullable_ptr);
     takes_nonnull(&value);
     takes_nullable(&value);
 }

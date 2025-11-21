@@ -1584,6 +1584,11 @@ defm apple_pragma_pack : BoolFOption<"apple-pragma-pack",
   PosFlag<SetTrue, [], [ClangOption, CC1Option],
           "Enable Apple gcc-compatible #pragma pack handling">,
   NegFlag<SetFalse>>;
+defm strict_nullability_inference : BoolFOption<"strict-nullability-inference",
+  LangOpts<"StrictNullabilityInference">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption, CC1Option],
+          "Treat inferred nullability as explicit for diagnostics (cbang)">,
+  NegFlag<SetFalse>>;
 defm xl_pragma_pack : BoolFOption<"xl-pragma-pack",
   LangOpts<"XLPragmaPack">, DefaultFalse,
   PosFlag<SetTrue, [], [ClangOption, CC1Option],

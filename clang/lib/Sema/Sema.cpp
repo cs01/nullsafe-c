@@ -688,6 +688,10 @@ void Sema::diagnoseNullableToNonnullConversion(QualType DstType,
   if (!TypeNullability || *TypeNullability != NullabilityKind::NonNull)
     return;
 
+  // cbang: Always warn when StrictNullabilityInference is enabled.
+  // This makes inferred nullable→nonnull conversions visible.
+  // Note: The original code always warned here, but the diagnostic is only
+  // emitted when the warning is enabled (-Wnullable-to-nonnull-conversion).
   Diag(Loc, diag::warn_nullability_lost) << SrcType << DstType;
 }
 

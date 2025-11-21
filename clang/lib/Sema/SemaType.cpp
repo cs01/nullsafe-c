@@ -4454,16 +4454,18 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         break;
 
       case PointerDeclaratorKind::SingleLevelPointer:
-        // cbang: Always infer nullability for single-level pointers.
+        // cbang: Always add explicit nullability for single-level pointers.
         // Default to _Nullable unless in an assumes-nonnull region.
+        // We set inferNullabilityCS = false to make it explicit (not inferred),
+        // which ensures diagnostics will catch nullable->nonnull conversions.
         complainAboutInferringWithinChunk = wrappingKind;
         if (inAssumeNonNullRegion) {
           inferNullability = NullabilityKind::NonNull;
         } else {
           inferNullability = NullabilityKind::Nullable;
         }
-        inferNullabilityCS = (context == DeclaratorContext::ObjCParameter ||
-                              context == DeclaratorContext::ObjCResult);
+        // cbang: Force explicit nullability (not context-sensitive)
+        inferNullabilityCS = false;
         break;
 
       case PointerDeclaratorKind::CFErrorRefPointer:
@@ -4521,9 +4523,32 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
     case DeclaratorContext::TypeName:
     case DeclaratorContext::FunctionalCast:
     case DeclaratorContext::RequiresExpr:
-    case DeclaratorContext::Association:
-      // Don't infer in these contexts.
+    case DeclaratorContext::Association: {
+      // cbang: Add nullability inference for local variables and other contexts
+      complainAboutMissingNullability = CAMN_Yes;
+
+      auto wrappingKind = PointerWrappingDeclaratorKind::None;
+      switch (classifyPointerDeclarator(S, T, D, wrappingKind)) {
+      case PointerDeclaratorKind::NonPointer:
+      case PointerDeclaratorKind::MultiLevelPointer:
+        break;
+
+      case PointerDeclaratorKind::SingleLevelPointer:
+        // cbang: Always add explicit nullability for single-level pointers.
+        complainAboutInferringWithinChunk = wrappingKind;
+        if (inAssumeNonNullRegion) {
+          inferNullability = NullabilityKind::NonNull;
+        } else {
+          inferNullability = NullabilityKind::Nullable;
+        }
+        inferNullabilityCS = false;
+        break;
+
+      default:
+        break;
+      }
       break;
+    }
     }
   }
 

@@ -16,7 +16,9 @@
       "Bash(/tmp/null_safety_test/test_valid:*)",
       "Bash(cmake:*)",
       "Bash(./bin/cbang:*)",
-      "Bash(/tmp/test_cbang)"
+      "Bash(/tmp/test_cbang)",
+      "Bash(/data/users/cssmith/git/llvm-project/build/bin/cbang -c cJSON.c -o /tmp/cJSON.o)",
+      "Bash(/data/users/cssmith/git/llvm-project/build/bin/cbang:*)"
     ],
     "deny": [],
     "ask": []
