@@ -1834,8 +1834,22 @@ StmtResult Parser::ParseWhileStatement(SourceLocation *TrailingElseLoc,
 
   MisleadingIndentationChecker MIChecker(*this, MSK_while, WhileLoc);
 
+  // cbang: Loop condition narrowing
+  // If the condition dereferences pointers, they must be non-null inside the loop
+  Actions.PushNullabilityNarrowingScope();
+  if (!Cond.isInvalid() && Cond.get().second) {
+    SmallVector<const VarDecl*, 4> DereferencedVars;
+    Actions.CollectDereferencedVariables(Cond.get().second, DereferencedVars);
+    for (const VarDecl *VD : DereferencedVars) {
+      Actions.NarrowVariableToNonNull(VD);
+    }
+  }
+
   // Read the body statement.
   StmtResult Body(ParseStatement(TrailingElseLoc));
+
+  // cbang: Pop narrowing scope after loop body
+  Actions.PopNullabilityNarrowingScope();
 
   if (Body.isUsable())
     MIChecker.Check();
@@ -2310,8 +2324,22 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc,
 
   MisleadingIndentationChecker MIChecker(*this, MSK_for, ForLoc);
 
+  // cbang: Loop condition narrowing for for-loops
+  // If the condition dereferences pointers, they must be non-null inside the loop
+  Actions.PushNullabilityNarrowingScope();
+  if (!SecondPart.isInvalid() && SecondPart.get().second) {
+    SmallVector<const VarDecl*, 4> DereferencedVars;
+    Actions.CollectDereferencedVariables(SecondPart.get().second, DereferencedVars);
+    for (const VarDecl *VD : DereferencedVars) {
+      Actions.NarrowVariableToNonNull(VD);
+    }
+  }
+
   // Read the body statement.
   StmtResult Body(ParseStatement(TrailingElseLoc));
+
+  // cbang: Pop narrowing scope after loop body
+  Actions.PopNullabilityNarrowingScope();
 
   if (Body.isUsable())
     MIChecker.Check();

@@ -1200,6 +1200,12 @@ public:
   void CollectNullCheckedVariables(Expr *Cond, bool IsNegated,
                                    SmallVectorImpl<const VarDecl*> &Vars);
 
+  /// cbang: Collect all variables that are dereferenced in an expression.
+  /// For example, "tolower(*p) == tolower(*q)" should collect both p and q.
+  /// This is used for loop condition narrowing.
+  void CollectDereferencedVariables(Expr *E,
+                                    SmallVectorImpl<const VarDecl*> &Vars);
+
   /// cbang: Check if a statement always terminates (return/break/continue/throw).
   /// This is used for early-return narrowing.
   bool StatementAlwaysTerminates(Stmt *S);

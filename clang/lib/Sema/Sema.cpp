@@ -847,6 +847,50 @@ void Sema::CollectNullCheckedVariables(Expr *Cond, bool ParentIsNegated,
   }
 }
 
+// cbang: Collect all variables that are dereferenced in an expression.
+// This recursively walks the AST to find UnaryOperator nodes with UO_Deref.
+void Sema::CollectDereferencedVariables(Expr *E,
+                                        SmallVectorImpl<const VarDecl*> &Vars) {
+  if (!E)
+    return;
+
+  E = E->IgnoreParenImpCasts();
+
+  // Check if this is a dereference operator: *p
+  if (auto *UO = dyn_cast<UnaryOperator>(E)) {
+    if (UO->getOpcode() == UO_Deref) {
+      // Found a dereference - extract the variable
+      Expr *SubExpr = UO->getSubExpr()->IgnoreParenImpCasts();
+      if (auto *DRE = dyn_cast<DeclRefExpr>(SubExpr)) {
+        if (auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+          Vars.push_back(VD);
+          return;  // Don't recurse into the subexpression
+        }
+      }
+    }
+  }
+
+  // Check if this is an array subscript: p[0] is the same as *(p + 0)
+  if (auto *ASE = dyn_cast<ArraySubscriptExpr>(E)) {
+    Expr *Base = ASE->getBase()->IgnoreParenImpCasts();
+    if (auto *DRE = dyn_cast<DeclRefExpr>(Base)) {
+      if (auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+        Vars.push_back(VD);
+      }
+    }
+    // Also check the index expression
+    CollectDereferencedVariables(ASE->getIdx(), Vars);
+    return;
+  }
+
+  // Recursively check child expressions
+  for (Stmt *Child : E->children()) {
+    if (auto *ChildExpr = dyn_cast_or_null<Expr>(Child)) {
+      CollectDereferencedVariables(ChildExpr, Vars);
+    }
+  }
+}
+
 // cbang: Check if a statement always terminates (for early-return narrowing).
 bool Sema::StatementAlwaysTerminates(Stmt *S) {
   if (!S)

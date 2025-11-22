@@ -1,10 +1,10 @@
 # C! Null-Safe C
 
-**cbang** (pronounced 'cbang') is a memory-safe(r) dialect of C that adds compile-time null-safety checking. Its goal is to fix the 'billion dollar mistake'.
+**cbang** is a drop-in replacement for clang with better null checking, type refinement, and an optional new type `*!` (non-null). Its goal is to fix the 'billion dollar mistake'.
 
-Write `int*!` for non-nullable pointers and `int*` for nullable ones. The compiler catches null-pointer bugs before they crash your program. cbang is 100% compatible with existing C code and compiles to standard C, making it a drop-in replacement for your existing toolchain.
+Write `int*!` for non-nullable pointers and `int*` for nullable ones. The compiler catches null-pointer bugs before they crash your program through flow-sensitive type refinement. cbang is 100% compatible with existing C code, making it a drop-in replacement for your existing toolchain.
 
-The cbang compiler is a fork of the clang compiler with the addion of null safety checks and the `*! syntax`. This means it has all the power of clang and the same API. It also means IDE integrations for the new `*!` work with the clangd build of cbang.
+The cbang compiler is a fork of the clang compiler with the addition of null safety checks and the `*!` syntax. This means it has all the power of clang and the same API. It also means IDE integrations for the new `*!` work with the clangd build of cbang.
 
 ## Roadmap
 
@@ -17,19 +17,18 @@ The cbang compiler is a fork of the clang compiler with the addion of null safet
 - [x] Typedef support for nullability annotations
 - [x] Real-world code compatibility (tested on cJSON, SQLite)
 - [x] IDE tooling (use C!'s `clangd` binary)
-- [x] GitHub Actions CI/CD for building releases
-
-## How It Works
-
-cbang implements **flow-sensitive nullability analysis** directly in Clang's semantic analyzer. Unlike languages like Swift, TypeScript, or Kotlin that have flow analysis built into their type systems from the start, C!'s implementation brings this capability to C by layering it onto Clang's traditionally flow-insensitive type system. When you write `if (p)`, the compiler tracks that `p` is non-null within that branch and allows you to use it where a non-nullable pointer is expected—all without runtime overhead.
 
 ### Future Work
 - [ ] **Dereference checking**: Error when dereferencing nullable pointers (`*p` where `p` is `int*`)
 - [ ] Multi-level pointer support (`**!`, `***!` syntax)
 - [ ] Standard library nullability annotations (libc headers)
 - [ ] Bounds safety integration (combine with `-fbounds-safety`)
-- [ ] Optional runtime null checks for debug builds
 - [ ] Interop mode for gradual adoption in existing codebases
+
+## How It Works
+
+cbang implements **flow-sensitive nullability analysis** directly in Clang's semantic analyzer. Unlike languages like Swift, TypeScript, or Kotlin that have flow analysis built into their type systems from the start, C!'s implementation brings this capability to C by layering it onto Clang's traditionally flow-insensitive type system. When you write `if (p)`, the compiler tracks that `p` is non-null within that branch and allows you to use it where a non-nullable pointer is expected—all without runtime overhead.
+
 
 ---
 
