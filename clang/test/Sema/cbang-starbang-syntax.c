@@ -149,3 +149,50 @@ void test_flow_dereference(int* p) {
 void test_flow_dereference_no_check(int* p) {
     *p = 42;  // expected-error{{dereferencing nullable pointer of type 'int * _Nullable'}}
 }
+
+// ============================================================================
+// Early-return narrowing tests
+// ============================================================================
+
+// Early return with single variable
+void test_early_return_simple(char* p) {
+    if (p == 0) return;
+
+    // After early return, p is narrowed to nonnull
+    *p = 'x';  // OK
+}
+
+// Early return with negated check
+void test_early_return_negated(char* p) {
+    if (!p) return;
+
+    *p = 'x';  // OK
+}
+
+// Early return with compound OR condition
+void test_early_return_compound(char* p, char* q) {
+    if (!p || !q) return;
+
+    // Both p and q are narrowed
+    *p = 'x';  // OK
+    *q = 'y';  // OK
+}
+
+// Early return with explicit NULL comparison and OR
+void test_early_return_explicit_or(char* p, char* q) {
+    if ((p == 0) || (q == 0)) {
+        return;
+    }
+
+    *p = 'x';  // OK
+    *q = 'y';  // OK
+}
+
+// Early return with braces
+void test_early_return_braces(char* p) {
+    if (p == 0) {
+        return;
+    }
+
+    *p = 'x';  // OK
+}
