@@ -779,6 +779,21 @@ const VarDecl* Sema::AnalyzeConditionForNullCheck(Expr *Cond, bool &IsNegated) {
 
   // Handle: ptr != NULL or ptr == NULL
   if (auto *BO = dyn_cast<BinaryOperator>(E)) {
+    // Handle AND operator: p && <anything>
+    // If the left side is a null check, narrow based on that
+    if (BO->getOpcode() == BO_LAnd) {
+      Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
+
+      // Check if left side is a simple pointer check or explicit null comparison
+      bool LHSIsNegated = false;
+      const VarDecl *VD = AnalyzeConditionForNullCheck(LHS, LHSIsNegated);
+      if (VD && !LHSIsNegated) {
+        // Left side checks "if (p)" or "if (p != NULL)", so in the then-branch p is nonnull
+        IsNegated = false;
+        return VD;
+      }
+    }
+
     if (BO->getOpcode() == BO_NE || BO->getOpcode() == BO_EQ) {
       Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
       Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();

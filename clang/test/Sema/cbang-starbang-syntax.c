@@ -196,3 +196,11 @@ void test_early_return_braces(char* p) {
 
     *p = 'x';  // OK
 }
+
+// AND pattern - narrows inside the then-block  
+int some_condition(void);
+void test_and_pattern(char* p) {
+    if (p && some_condition()) {
+        *p = 'x';  // OK - p is narrowed inside the block
+    }
+}
