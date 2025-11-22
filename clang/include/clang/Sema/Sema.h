@@ -1171,7 +1171,38 @@ public:
   /// Warn if we're implicitly casting from a _Nullable pointer type to a
   /// _Nonnull one.
   void diagnoseNullableToNonnullConversion(QualType DstType, QualType SrcType,
-                                           SourceLocation Loc);
+                                           SourceLocation Loc,
+                                           Expr *SrcExpr = nullptr);
+
+  /// cbang: Flow-sensitive nullability narrowing support.
+  /// Push a new narrowing scope (e.g., entering an if statement).
+  void PushNullabilityNarrowingScope();
+
+  /// cbang: Pop a narrowing scope (e.g., leaving an if statement).
+  void PopNullabilityNarrowingScope();
+
+  /// cbang: Narrow a variable's type to non-null in the current scope.
+  void NarrowVariableToNonNull(const VarDecl *VD);
+
+  /// cbang: Get the narrowed type for a variable, if any.
+  /// Returns the narrowed type if the variable has been narrowed in the
+  /// current scope, otherwise returns an empty QualType.
+  QualType GetNarrowedType(const VarDecl *VD) const;
+
+  /// cbang: Analyze a condition expression for null checks and set up
+  /// narrowing for the then/else branches.
+  /// Returns the variable being checked, or nullptr if not a simple null check.
+  const VarDecl* AnalyzeConditionForNullCheck(Expr *Cond, bool &IsNegated);
+
+  /// cbang: Collect all variables that are null-checked in an OR expression.
+  /// For example, "if (!p || !q) return;" should collect both p and q.
+  /// All variables must have the same negation (all negated or all non-negated).
+  void CollectNullCheckedVariables(Expr *Cond, bool IsNegated,
+                                   SmallVectorImpl<const VarDecl*> &Vars);
+
+  /// cbang: Check if a statement always terminates (return/break/continue/throw).
+  /// This is used for early-return narrowing.
+  bool StatementAlwaysTerminates(Stmt *S);
 
   /// Warn when implicitly casting 0 to nullptr.
   void diagnoseZeroToNullptrConversion(CastKind Kind, const Expr *E);
@@ -1230,6 +1261,11 @@ public:
   unsigned CapturingFunctionScopes = 0;
 
   llvm::BumpPtrAllocator BumpAlloc;
+
+  /// cbang: Flow-sensitive nullability narrowing.
+  /// Maps variables to their narrowed (non-null) types within scopes.
+  /// This is a stack of maps to support nested scopes.
+  llvm::SmallVector<llvm::DenseMap<const VarDecl*, QualType>, 4> NullabilityNarrowingScopes;
 
   /// The kind of translation unit we are processing.
   ///

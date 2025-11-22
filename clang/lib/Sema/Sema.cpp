@@ -678,7 +678,8 @@ void Sema::PrintStats() const {
 
 void Sema::diagnoseNullableToNonnullConversion(QualType DstType,
                                                QualType SrcType,
-                                               SourceLocation Loc) {
+                                               SourceLocation Loc,
+                                               Expr *SrcExpr) {
   std::optional<NullabilityKind> ExprNullability = SrcType->getNullability();
   if (!ExprNullability || (*ExprNullability != NullabilityKind::Nullable &&
                            *ExprNullability != NullabilityKind::NullableResult))
@@ -688,11 +689,185 @@ void Sema::diagnoseNullableToNonnullConversion(QualType DstType,
   if (!TypeNullability || *TypeNullability != NullabilityKind::NonNull)
     return;
 
-  // cbang: Always warn when StrictNullabilityInference is enabled.
-  // This makes inferred nullable→nonnull conversions visible.
-  // Note: The original code always warned here, but the diagnostic is only
-  // emitted when the warning is enabled (-Wnullable-to-nonnull-conversion).
-  Diag(Loc, diag::warn_nullability_lost) << SrcType << DstType;
+  // cbang: Check if the source expression refers to a variable that has been
+  // narrowed to non-null by flow-sensitive analysis (e.g., after an `if (p)` check).
+  if (SrcExpr) {
+    if (const auto *DRE = dyn_cast<DeclRefExpr>(SrcExpr->IgnoreParenImpCasts())) {
+      if (const auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+        QualType NarrowedType = GetNarrowedType(VD);
+        if (!NarrowedType.isNull()) {
+          // The variable has been narrowed to non-null, so the conversion is safe
+          return;
+        }
+      }
+    }
+  }
+
+  // cbang: Always error when converting nullable to non-nullable.
+  // This makes nullable→nonnull conversions hard errors for strict null safety.
+  Diag(Loc, diag::err_nullability_lost) << SrcType << DstType;
+}
+
+// cbang: Flow-sensitive nullability narrowing implementation.
+
+void Sema::PushNullabilityNarrowingScope() {
+  NullabilityNarrowingScopes.emplace_back();
+}
+
+void Sema::PopNullabilityNarrowingScope() {
+  if (!NullabilityNarrowingScopes.empty()) {
+    NullabilityNarrowingScopes.pop_back();
+  }
+}
+
+void Sema::NarrowVariableToNonNull(const VarDecl *VD) {
+  if (!VD || NullabilityNarrowingScopes.empty())
+    return;
+
+  QualType OrigType = VD->getType();
+  std::optional<NullabilityKind> Nullability = OrigType->getNullability();
+
+  // Only narrow if the type is nullable
+  if (!Nullability || *Nullability != NullabilityKind::Nullable)
+    return;
+
+  // Strip the existing nullability attribute first
+  QualType BaseType = OrigType;
+  (void)AttributedType::stripOuterNullability(BaseType);
+
+  // Create a non-null version of the type
+  QualType NarrowedType = Context.getAttributedType(
+      NullabilityKind::NonNull,
+      BaseType,
+      BaseType);
+
+  // Store it in the current scope
+  NullabilityNarrowingScopes.back()[VD] = NarrowedType;
+}
+
+QualType Sema::GetNarrowedType(const VarDecl *VD) const {
+  if (!VD)
+    return QualType();
+
+  // Search from innermost to outermost scope
+  for (auto I = NullabilityNarrowingScopes.rbegin(),
+            E = NullabilityNarrowingScopes.rend();
+       I != E; ++I) {
+    auto It = I->find(VD);
+    if (It != I->end())
+      return It->second;
+  }
+
+  return QualType();
+}
+
+const VarDecl* Sema::AnalyzeConditionForNullCheck(Expr *Cond, bool &IsNegated) {
+  if (!Cond)
+    return nullptr;
+
+  IsNegated = false;
+  // Strip both parens and implicit casts to get to the real expression
+  Expr *E = Cond->IgnoreParenImpCasts();
+
+  // Handle: !ptr
+  if (auto *UO = dyn_cast<UnaryOperator>(E)) {
+    if (UO->getOpcode() == UO_LNot) {
+      IsNegated = true;
+      E = UO->getSubExpr()->IgnoreParenImpCasts();
+    }
+  }
+
+  // Handle: ptr != NULL or ptr == NULL
+  if (auto *BO = dyn_cast<BinaryOperator>(E)) {
+    if (BO->getOpcode() == BO_NE || BO->getOpcode() == BO_EQ) {
+      Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
+      Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();
+
+      // Check if one side is a null pointer constant
+      bool LHSIsNull = LHS->isNullPointerConstant(Context, Expr::NPC_ValueDependentIsNotNull);
+      bool RHSIsNull = RHS->isNullPointerConstant(Context, Expr::NPC_ValueDependentIsNotNull);
+
+      if (LHSIsNull || RHSIsNull) {
+        // Found a null comparison
+        Expr *PtrExpr = LHSIsNull ? RHS : LHS;
+        if (BO->getOpcode() == BO_EQ)
+          IsNegated = !IsNegated;  // "ptr == NULL" is like "!ptr"
+
+        // Extract the variable from the pointer expression
+        if (auto *DRE = dyn_cast<DeclRefExpr>(PtrExpr)) {
+          if (auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+            return VD;
+          }
+        }
+      }
+    }
+  }
+
+  // Handle: ptr (implicit boolean conversion)
+  if (auto *DRE = dyn_cast<DeclRefExpr>(E)) {
+    if (auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+      // Check if this is a pointer type
+      if (VD->getType()->isPointerType()) {
+        return VD;
+      }
+    }
+  }
+
+  return nullptr;
+}
+
+// cbang: Collect all null-checked variables from a condition (handles OR expressions)
+void Sema::CollectNullCheckedVariables(Expr *Cond, bool ParentIsNegated,
+                                       SmallVectorImpl<const VarDecl*> &Vars) {
+  if (!Cond)
+    return;
+
+  Expr *E = Cond->IgnoreParenImpCasts();
+
+  // Check if this is an OR expression
+  if (auto *BO = dyn_cast<BinaryOperator>(E)) {
+    if (BO->getOpcode() == BO_LOr) {
+      // Recursively collect from both sides of the OR
+      CollectNullCheckedVariables(BO->getLHS(), ParentIsNegated, Vars);
+      CollectNullCheckedVariables(BO->getRHS(), ParentIsNegated, Vars);
+      return;
+    }
+  }
+
+  // Otherwise, check if this is a single null check
+  bool SubIsNegated = false;
+  const VarDecl *VD = AnalyzeConditionForNullCheck(Cond, SubIsNegated);
+
+  // For early-return patterns like "if (p == NULL || q == NULL) return;",
+  // we want to collect variables where the check is for NULL (IsNegated=true).
+  // The parent might have !(...) wrapping the whole thing, but each individual
+  // check within the OR should be checking for NULL.
+  if (VD && SubIsNegated) {
+    Vars.push_back(VD);
+  }
+}
+
+// cbang: Check if a statement always terminates (for early-return narrowing).
+bool Sema::StatementAlwaysTerminates(Stmt *S) {
+  if (!S)
+    return false;
+
+  // Direct terminating statements
+  if (isa<ReturnStmt>(S) || isa<BreakStmt>(S) || isa<ContinueStmt>(S))
+    return true;
+
+  // CXXThrowExpr for C++
+  if (isa<CXXThrowExpr>(S))
+    return true;
+
+  // Compound statement: check if it ends with a terminating statement
+  if (auto *CS = dyn_cast<CompoundStmt>(S)) {
+    if (CS->size() > 0) {
+      return StatementAlwaysTerminates(CS->body_back());
+    }
+  }
+
+  return false;
 }
 
 // Generate diagnostics when adding or removing effects in a type conversion.
@@ -784,7 +959,9 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
          "can't cast prvalue to glvalue");
 #endif
 
-  diagnoseNullableToNonnullConversion(Ty, E->getType(), E->getBeginLoc());
+  // cbang: Pass the expression to diagnoseNullableToNonnullConversion so it
+  // can check if the variable has been narrowed to non-null by flow analysis.
+  diagnoseNullableToNonnullConversion(Ty, E->getType(), E->getBeginLoc(), E);
   diagnoseZeroToNullptrConversion(Kind, E);
   if (Context.hasAnyFunctionEffects() && !isCast(CCK) &&
       Kind != CK_NullToPointer && Kind != CK_NullToMemberPointer)

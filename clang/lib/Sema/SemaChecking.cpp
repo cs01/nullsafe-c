@@ -3620,7 +3620,7 @@ static void CheckNonNullArgument(Sema &S,
                                  SourceLocation CallSiteLoc) {
   if (CheckNonNullExpr(S, ArgExpr))
     S.DiagRuntimeBehavior(CallSiteLoc, ArgExpr,
-                          S.PDiag(diag::warn_null_arg)
+                          S.PDiag(diag::err_null_arg)
                               << ArgExpr->getSourceRange());
 }
 

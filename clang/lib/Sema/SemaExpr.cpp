@@ -6165,7 +6165,7 @@ Sema::CheckStaticArrayArgument(SourceLocation CallLoc,
 
   if (ArgExpr->isNullPointerConstant(Context,
                                      Expr::NPC_NeverValueDependent)) {
-    Diag(CallLoc, diag::warn_null_arg) << ArgExpr->getSourceRange();
+    Diag(CallLoc, diag::err_null_arg) << ArgExpr->getSourceRange();
     DiagnoseCalleeStaticArrayParam(*this, Param);
     return;
   }
@@ -14843,10 +14843,24 @@ static QualType CheckIndirectionOperand(Sema &S, Expr *Op, ExprValueKind &VK,
           << OpTy << Op->getSourceRange();
   }
 
-  // cbang: Check for dereferencing nullable pointers
-  if (auto Nullability = OpTy->getNullability()) {
+  // cbang: Check for dereferencing nullable pointers, but allow it if the
+  // pointer has been narrowed to non-null by flow-sensitive analysis.
+  QualType CheckType = OpTy;
+
+  // Check if this is a variable reference that might have been narrowed
+  if (const auto *DRE = dyn_cast<DeclRefExpr>(Op->IgnoreParenImpCasts())) {
+    if (const auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+      QualType NarrowedType = S.GetNarrowedType(VD);
+      if (!NarrowedType.isNull()) {
+        // Use the narrowed type for nullability checking
+        CheckType = NarrowedType;
+      }
+    }
+  }
+
+  if (auto Nullability = CheckType->getNullability()) {
     if (*Nullability == NullabilityKind::Nullable) {
-      S.Diag(OpLoc, diag::warn_nullable_dereference) << OpTy;
+      S.Diag(OpLoc, diag::err_nullable_dereference) << OpTy;
     }
   }
 

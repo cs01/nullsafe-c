@@ -1112,6 +1112,9 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
 
   Sema::CompoundScopeRAII CompoundScope(Actions, isStmtExpr);
 
+  // cbang: Push narrowing scope for the compound statement
+  Actions.PushNullabilityNarrowingScope();
+
   // Parse any pragmas at the beginning of the compound statement.
   ParseCompoundStatementLeadingPragmas();
   Actions.ActOnAfterCompoundStatementLeadingPragmas();
@@ -1215,8 +1218,11 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
   // If last statement is invalid, the last statement in `Stmts` will be
   // incorrect. Then the whole compound statement should also be marked as
   // invalid to prevent subsequent errors.
-  if (isStmtExpr && LastIsError && !Stmts.empty())
+  if (isStmtExpr && LastIsError && !Stmts.empty()) {
+    // cbang: Pop narrowing scope before early return
+    Actions.PopNullabilityNarrowingScope();
     return StmtError();
+  }
 
   // Warn the user that using option `-ffp-eval-method=source` on a
   // 32-bit target and feature `sse` disabled, or using
@@ -1244,6 +1250,9 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
 
   if (T.getCloseLocation().isValid())
     CloseLoc = T.getCloseLocation();
+
+  // cbang: Pop narrowing scope for the compound statement
+  Actions.PopNullabilityNarrowingScope();
 
   return Actions.ActOnCompoundStmt(T.getOpenLocation(), CloseLoc,
                                    Stmts, isStmtExpr);
@@ -1504,6 +1513,13 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
   // Read the 'then' stmt.
   SourceLocation ThenStmtLoc = Tok.getLocation();
 
+  // cbang: Analyze condition for null checks and set up narrowing
+  bool IsNegatedCheck = false;
+  const VarDecl *CheckedVar = nullptr;
+  if (!IsConsteval && !Cond.isInvalid() && Cond.get().second) {
+    CheckedVar = Actions.AnalyzeConditionForNullCheck(Cond.get().second, IsNegatedCheck);
+  }
+
   SourceLocation InnerStatementTrailingElseLoc;
   StmtResult ThenStmt;
   {
@@ -1515,10 +1531,41 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
       ShouldEnter = true;
     }
 
+    // cbang: Push narrowing scope for then-branch
+    Actions.PushNullabilityNarrowingScope();
+    if (CheckedVar && !IsNegatedCheck) {
+      // In the then-branch, the variable is known to be non-null
+      Actions.NarrowVariableToNonNull(CheckedVar);
+    }
+
     EnterExpressionEvaluationContext PotentiallyDiscarded(
         Actions, Context, nullptr,
         Sema::ExpressionEvaluationContextRecord::EK_Other, ShouldEnter);
     ThenStmt = ParseStatement(&InnerStatementTrailingElseLoc);
+
+    // cbang: Pop narrowing scope after then-branch
+    Actions.PopNullabilityNarrowingScope();
+  }
+
+  // cbang: Early-return narrowing
+  // If the then-statement terminates, check if the condition tests for null.
+  // Pattern: if (p == NULL || q == NULL) { return; }
+  // After the if-statement, all checked variables are non-null.
+  if (!ThenStmt.isInvalid() && !Cond.isInvalid() && Cond.get().second) {
+    if (Actions.StatementAlwaysTerminates(ThenStmt.get())) {
+      // Try to collect all null-checked variables
+      // For compound conditions like "(!p || !q)", IsNegatedCheck tells us if we're
+      // checking for NULL (true) or non-NULL (false)
+      SmallVector<const VarDecl*, 4> CheckedVars;
+      Actions.CollectNullCheckedVariables(Cond.get().second, IsNegatedCheck, CheckedVars);
+
+      // Apply inverted narrowing: NULL check + early return = nonnull after
+      if (!CheckedVars.empty()) {
+        for (const VarDecl *VD : CheckedVars) {
+          Actions.NarrowVariableToNonNull(VD);
+        }
+      }
+    }
   }
 
   if (Tok.isNot(tok::kw_else))
@@ -1560,10 +1607,23 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
       ShouldEnter = true;
     }
 
+    // cbang: Push narrowing scope for else-branch
+    // In the else branch, if the condition was "if (p)", then p is null
+    Actions.PushNullabilityNarrowingScope();
+    // Note: For now, we don't narrow in the else branch since we can't
+    // prove the variable is null (could be uninitialized or have other values).
+    // We could add this as a future enhancement.
+    // If we had: if (CheckedVar && IsNegatedCheck) {
+    //   Actions.NarrowVariableToNull(CheckedVar);  // Future work
+    // }
+
     EnterExpressionEvaluationContext PotentiallyDiscarded(
         Actions, Context, nullptr,
         Sema::ExpressionEvaluationContextRecord::EK_Other, ShouldEnter);
     ElseStmt = ParseStatement();
+
+    // cbang: Pop narrowing scope after else-branch
+    Actions.PopNullabilityNarrowingScope();
 
     if (ElseStmt.isUsable())
       MIChecker.Check();

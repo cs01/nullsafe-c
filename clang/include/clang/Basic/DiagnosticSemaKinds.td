@@ -10600,9 +10600,8 @@ def warn_format_cmp_specifier_mismatch_pedantic : Extension<
 def note_format_cmp_with : Note<
   "comparing with this %select{specifier|format string}0">;
 
-def warn_null_arg : Warning<
-  "null passed to a callee that requires a non-null argument">,
-  InGroup<NonNull>;
+def err_null_arg : Error<
+  "null passed to a callee that requires a non-null argument">;
 def warn_null_ret : Warning<
   "null returned from %select{function|method}0 that requires a non-null return value">,
   InGroup<NonNull>;
@@ -12666,13 +12665,11 @@ def note_nullability_here : Note<"%0 specified here">;
 def err_nullability_nonpointer : Error<
   "nullability specifier %0 cannot be applied to non-pointer type %1">;
 
-def warn_nullability_lost : Warning<
+def err_nullability_lost : Error<
   "implicit conversion from nullable pointer %0 to non-nullable pointer "
-  "type %1">,
-  InGroup<NullableToNonNullConversion>;
-def warn_nullable_dereference : Warning<
-  "dereferencing nullable pointer of type %0">,
-  InGroup<NullableToNonNullConversion>;
+  "type %1">;
+def err_nullable_dereference : Error<
+  "dereferencing nullable pointer of type %0">;
 def warn_zero_as_null_pointer_constant : Warning<
   "zero as null pointer constant">,
   InGroup<DiagGroup<"zero-as-null-pointer-constant">>, DefaultIgnore;
