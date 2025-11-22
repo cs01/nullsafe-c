@@ -23,6 +23,10 @@ int* returns_nullable(void) {
     return 0;
 }
 
+int foo(int* p1) {
+    return *p1 + 1;
+}
+
 void test_basic_syntax(void) {
     int value = 10;
     int*! nonnull_ptr = NULL;

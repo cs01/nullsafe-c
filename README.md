@@ -1,10 +1,34 @@
+# C! Null-Safe C
+
+**cbang** (pronounced 'cbang') is a memory-safe(r) dialect of C that adds compile-time null-safety checking. Its goal is to fix the 'billion dollar mistake'.
+
+Write `int*!` for non-nullable pointers and `int*` for nullable ones. The compiler catches null-pointer bugs before they crash your program. cbang is 100% compatible with existing C code and compiles to standard C, making it a drop-in replacement for your existing toolchain.
+
+The cbang compiler is a fork of the clang compiler with the addion of null safety checks and the `*! syntax`. This means it has all the power of clang and the same API. It also means IDE integrations for the new `*!` work with the clangd build of cbang.
+
+## Roadmap
+
+### Completed
+- [x] `*!` syntax for non-nullable pointers of all types
+- [x] Single-level pointers default to `_Nullable`
+- [x] Nullable → non-nullable conversion warnings
+- [x] Type checking through function calls and returns
+- [x] Typedef support for nullability annotations
+- [x] Real-world code compatibility (tested on cJSON, SQLite)
+- [x] IDE tooling (use C!'s `clangd` binary)
+
+### Future Work
+- [ ] Dereference checking to error when dereferencing Nullable
+- [ ] Type refinement (null checks narrow types)
+- [ ] Multi-level pointer support (`**!`, `***!` syntax)
+- [ ] Standard library nullability annotations (libc headers)
+- [ ] Bounds safety integration (combine with `-fbounds-safety`)
+- [ ] Optional runtime null checks for debug builds
+- [ ] Interop mode for gradual adoption in existing codebases
+
+---
+
 # The LLVM Compiler Infrastructure
-
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/llvm/llvm-project/badge)](https://securityscorecards.dev/viewer/?uri=github.com/llvm/llvm-project)
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/8273/badge)](https://www.bestpractices.dev/projects/8273)
-[![libc++](https://github.com/llvm/llvm-project/actions/workflows/libcxx-build-and-test.yaml/badge.svg?branch=main&event=schedule)](https://github.com/llvm/llvm-project/actions/workflows/libcxx-build-and-test.yaml?query=event%3Aschedule)
-
-Welcome to the LLVM project!
 
 This repository contains the source code for LLVM, a toolkit for the
 construction of highly optimized compilers, optimizers, and run-time

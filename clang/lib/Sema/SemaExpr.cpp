@@ -14843,6 +14843,13 @@ static QualType CheckIndirectionOperand(Sema &S, Expr *Op, ExprValueKind &VK,
           << OpTy << Op->getSourceRange();
   }
 
+  // cbang: Check for dereferencing nullable pointers
+  if (auto Nullability = OpTy->getNullability()) {
+    if (*Nullability == NullabilityKind::Nullable) {
+      S.Diag(OpLoc, diag::warn_nullable_dereference) << OpTy;
+    }
+  }
+
   // Dereferences are usually l-values...
   VK = VK_LValue;
 
