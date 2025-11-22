@@ -1,0 +1,122 @@
+name: Build cbang Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          # Linux x86_64
+          - os: ubuntu-latest
+            arch: x86_64
+            artifact_name: cbang-linux-x86_64
+            cmake_target: X86
+
+          # Linux ARM64
+          - os: ubuntu-latest
+            arch: aarch64
+            artifact_name: cbang-linux-aarch64
+            cmake_target: AArch64
+            use_cross: true
+
+          # macOS Intel
+          - os: macos-13
+            arch: x86_64
+            artifact_name: cbang-macos-x86_64
+            cmake_target: X86
+
+          # macOS Apple Silicon
+          - os: macos-14
+            arch: arm64
+            artifact_name: cbang-macos-arm64
+            cmake_target: AArch64
+
+          # Windows x86_64
+          - os: windows-latest
+            arch: x86_64
+            artifact_name: cbang-windows-x86_64
+            cmake_target: X86
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies (Ubuntu)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake ninja-build
+
+    - name: Install dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install cmake ninja
+
+    - name: Install dependencies (Windows)
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Setup cross-compilation (Linux ARM64)
+      if: matrix.use_cross
+      run: |
+        sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+    - name: Build cbang
+      run: |
+        mkdir build && cd build
+        cmake -G Ninja ../llvm \
+          -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DLLVM_TARGETS_TO_BUILD="${{ matrix.cmake_target }}" \
+          -DLLVM_ENABLE_ASSERTIONS=OFF \
+          -DLLVM_BUILD_TOOLS=ON
+        ninja clang clangd
+      shell: bash
+
+    - name: Package binaries (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        mkdir -p release/${{ matrix.artifact_name }}
+        cp build/bin/clang release/${{ matrix.artifact_name }}/cbang
+        cp build/bin/clangd release/${{ matrix.artifact_name }}/
+        tar -czf ${{ matrix.artifact_name }}.tar.gz -C release ${{ matrix.artifact_name }}
+      shell: bash
+
+    - name: Package binaries (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        mkdir -p release/${{ matrix.artifact_name }}
+        cp build/bin/clang.exe release/${{ matrix.artifact_name }}/cbang.exe
+        cp build/bin/clangd.exe release/${{ matrix.artifact_name }}/
+        Compress-Archive -Path release/${{ matrix.artifact_name }} -DestinationPath ${{ matrix.artifact_name }}.zip
+      shell: powershell
+
+    - name: Upload Release Asset (Unix)
+      if: runner.os != 'Windows'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: ${{ matrix.artifact_name }}.tar.gz
+
+    - name: Upload Release Asset (Windows)
+      if: runner.os == 'Windows'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: ${{ matrix.artifact_name }}.zip
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          ${{ matrix.artifact_name }}.tar.gz
+          ${{ matrix.artifact_name }}.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

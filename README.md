@@ -11,14 +11,15 @@ The cbang compiler is a fork of the clang compiler with the addion of null safet
 ### Completed
 - [x] `*!` syntax for non-nullable pointers of all types
 - [x] Single-level pointers default to `_Nullable`
-- [x] Nullable → non-nullable conversion warnings
+- [x] Nullable → non-nullable conversion warnings (enabled by default)
 - [x] Type checking through function calls and returns
 - [x] Typedef support for nullability annotations
 - [x] Real-world code compatibility (tested on cJSON, SQLite)
 - [x] IDE tooling (use C!'s `clangd` binary)
+- [x] GitHub Actions CI/CD for building releases
 
 ### Future Work
-- [ ] Dereference checking to error when dereferencing Nullable
+- [ ] **Dereference checking**: Error when dereferencing nullable pointers (`*p` where `p` is `int*`)
 - [ ] Type refinement (null checks narrow types)
 - [ ] Multi-level pointer support (`**!`, `***!` syntax)
 - [ ] Standard library nullability annotations (libc headers)
