@@ -720,6 +720,16 @@ void Sema::PopNullabilityNarrowingScope() {
   }
 }
 
+void Sema::PushAndExprNarrowingContext() {
+  AndExprNarrowedVars.emplace_back();
+}
+
+void Sema::PopAndExprNarrowingContext() {
+  if (!AndExprNarrowedVars.empty()) {
+    AndExprNarrowedVars.pop_back();
+  }
+}
+
 void Sema::NarrowVariableToNonNull(const VarDecl *VD) {
   if (!VD || NullabilityNarrowingScopes.empty())
     return;
@@ -858,6 +868,35 @@ void Sema::CollectNullCheckedVariables(Expr *Cond, bool ParentIsNegated,
   // The parent might have !(...) wrapping the whole thing, but each individual
   // check within the OR should be checking for NULL.
   if (VD && SubIsNegated) {
+    Vars.push_back(VD);
+  }
+}
+
+// cbang: Collect all non-null checked variables from an AND expression.
+// For "p && q", collect both p and q.
+void Sema::CollectAndCheckedVariables(Expr *Cond,
+                                      SmallVectorImpl<const VarDecl*> &Vars) {
+  if (!Cond)
+    return;
+
+  Expr *E = Cond->IgnoreParenImpCasts();
+
+  // Check if this is an AND expression
+  if (auto *BO = dyn_cast<BinaryOperator>(E)) {
+    if (BO->getOpcode() == BO_LAnd) {
+      // Recursively collect from both sides of the AND
+      CollectAndCheckedVariables(BO->getLHS(), Vars);
+      CollectAndCheckedVariables(BO->getRHS(), Vars);
+      return;
+    }
+  }
+
+  // Otherwise, check if this is a simple non-negated null check
+  bool IsNegated = false;
+  const VarDecl *VD = AnalyzeConditionForNullCheck(Cond, IsNegated);
+
+  // For AND patterns like "p && q", we want non-negated checks
+  if (VD && !IsNegated) {
     Vars.push_back(VD);
   }
 }

@@ -1200,6 +1200,12 @@ public:
   void CollectNullCheckedVariables(Expr *Cond, bool IsNegated,
                                    SmallVectorImpl<const VarDecl*> &Vars);
 
+  /// cbang: Collect all variables that are non-null checked in an AND expression.
+  /// For example, "p && q" should collect both p and q.
+  /// This is used for AND-expression narrowing.
+  void CollectAndCheckedVariables(Expr *Cond,
+                                  SmallVectorImpl<const VarDecl*> &Vars);
+
   /// cbang: Collect all variables that are dereferenced in an expression.
   /// For example, "tolower(*p) == tolower(*q)" should collect both p and q.
   /// This is used for loop condition narrowing.
@@ -1209,6 +1215,14 @@ public:
   /// cbang: Check if a statement always terminates (return/break/continue/throw).
   /// This is used for early-return narrowing.
   bool StatementAlwaysTerminates(Stmt *S);
+
+  /// cbang: Push a new context for tracking AND-expression narrowings.
+  /// Call this before parsing a condition that may contain AND expressions.
+  void PushAndExprNarrowingContext();
+
+  /// cbang: Pop AND-expression narrowing context.
+  /// Call this after finishing the statement that used the condition.
+  void PopAndExprNarrowingContext();
 
   /// Warn when implicitly casting 0 to nullptr.
   void diagnoseZeroToNullptrConversion(CastKind Kind, const Expr *E);
@@ -1272,6 +1286,11 @@ public:
   /// Maps variables to their narrowed (non-null) types within scopes.
   /// This is a stack of maps to support nested scopes.
   llvm::SmallVector<llvm::DenseMap<const VarDecl*, QualType>, 4> NullabilityNarrowingScopes;
+
+  /// cbang: Track variables narrowed within AND expressions.
+  /// Used to coordinate between BinOp analysis and ParseIfStatement.
+  /// When we see "p && expr", we narrow p before analyzing expr, and record it here.
+  llvm::SmallVector<llvm::SmallVector<const VarDecl*, 4>, 4> AndExprNarrowedVars;
 
   /// The kind of translation unit we are processing.
   ///

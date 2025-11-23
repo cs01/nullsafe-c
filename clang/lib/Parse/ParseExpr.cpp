@@ -440,6 +440,23 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
 
     PreferredType.enterBinary(Actions, Tok.getLocation(), LHS.get(),
                               OpToken.getKind());
+
+    // cbang: For AND expressions (&&), narrow the LHS variable(s) before parsing RHS.
+    // This allows patterns like "if (p && *p == 'x')" to work without errors.
+    if (OpToken.is(tok::ampamp) && !LHS.isInvalid()) {
+      // Collect all variables from the LHS (handles both simple checks and compound AND expressions)
+      SmallVector<const VarDecl*, 4> CheckedVars;
+      Actions.CollectAndCheckedVariables(LHS.get(), CheckedVars);
+
+      if (!CheckedVars.empty()) {
+        // Push a narrowing scope and narrow all collected variables
+        Actions.PushNullabilityNarrowingScope();
+        for (const VarDecl *VD : CheckedVars) {
+          Actions.NarrowVariableToNonNull(VD);
+        }
+      }
+    }
+
     // Parse another leaf here for the RHS of the operator.
     // ParseCastExpression works here because all RHS expressions in C have it
     // as a prefix, at least. However, in C++, an assignment-expression could

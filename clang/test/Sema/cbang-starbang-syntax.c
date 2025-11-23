@@ -16,6 +16,8 @@ void takes_nullable(int* p) {
         // TODO: Invalidate narrowing after function calls that could modify the pointer
         // (see Phase 4 - narrowing invalidation)
         *p = 23;
+    } else {
+        *p=7;
     }
 }
 
@@ -197,10 +199,37 @@ void test_early_return_braces(char* p) {
     *p = 'x';  // OK
 }
 
-// AND pattern - narrows inside the then-block  
+// AND pattern - narrows inside the then-block
 int some_condition(void);
 void test_and_pattern(char* p) {
     if (p && some_condition()) {
         *p = 'x';  // OK - p is narrowed inside the block
+    }
+}
+
+// ============================================================================
+// AND-expression dereference tests (Phase 2.6 - AND expression narrowing)
+// ============================================================================
+
+// Test dereference in AND condition itself
+void test_and_deref_simple(char* p) {
+    if (p && *p == 'x') {  // OK - p is narrowed before dereferencing in condition
+        *p = 'y';          // OK - p is narrowed in body too
+    }
+}
+
+// Test chained AND with multiple dereferences
+void test_and_deref_chained(char* p, char* q) {
+    if (p && q && *p == *q) {  // OK - both p and q are narrowed
+        *p = 'a';              // OK
+        *q = 'b';              // OK
+    }
+}
+
+// Test AND with function call using dereferenced pointer
+int check_char(char c);
+void test_and_deref_funcall(char* p) {
+    if (p && check_char(*p)) {  // OK - p is narrowed before dereference
+        *p = 'x';               // OK
     }
 }

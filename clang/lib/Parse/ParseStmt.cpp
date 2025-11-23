@@ -1474,6 +1474,11 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
   SourceLocation LParen;
   SourceLocation RParen;
   std::optional<bool> ConstexprCondition;
+
+  // cbang: Remember the narrowing scope depth before parsing the condition.
+  // This allows us to pop only scopes created during AND-expression parsing.
+  size_t ScopeDepthBeforeCondition = Actions.NullabilityNarrowingScopes.size();
+
   if (!IsConsteval) {
 
     if (ParseParenExprOrCondition(&InitStmt, Cond, IfLoc,
@@ -1532,7 +1537,27 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
     }
 
     // cbang: Push narrowing scope for then-branch
+    //
+    // Before pushing the if-body scope, we need to consolidate any narrowing scopes
+    // that were pushed during AND-expression parsing. For example, if the condition
+    // is "p && q && *p", we may have pushed scopes for both `p` and `q` during parsing.
+    // We pop those scopes and re-narrow the variables in the new if-body scope.
+    llvm::SmallVector<const VarDecl*, 4> AndNarrowedVars;
+    while (Actions.NullabilityNarrowingScopes.size() > ScopeDepthBeforeCondition) {
+      // Collect all variables narrowed in this scope
+      for (const auto &Entry : Actions.NullabilityNarrowingScopes.back()) {
+        AndNarrowedVars.push_back(Entry.first);
+      }
+      Actions.PopNullabilityNarrowingScope();
+    }
+
+    // Now push the if-body scope and re-apply all narrowings
     Actions.PushNullabilityNarrowingScope();
+    for (const VarDecl *VD : AndNarrowedVars) {
+      Actions.NarrowVariableToNonNull(VD);
+    }
+
+    // Also apply narrowing from the traditional null check analysis
     if (CheckedVar && !IsNegatedCheck) {
       // In the then-branch, the variable is known to be non-null
       Actions.NarrowVariableToNonNull(CheckedVar);
