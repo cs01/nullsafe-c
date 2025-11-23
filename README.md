@@ -21,13 +21,45 @@ The cbang compiler is a fork of the clang compiler with the addition of null saf
 
 ### Future Work
 - [ ] Multi-level pointer support (`**!`, `***!` syntax)
-- [ ] Standard library nullability annotations (libc headers)
+- [x] **Standard library nullability annotations** (see `clang/nullsafe-headers/`)
 - [ ] Bounds safety integration (combine with `-fbounds-safety`)
 - [ ] Interop mode for gradual adoption in existing codebases
 
 ## How It Works
 
 cbang implements **flow-sensitive nullability analysis** directly in Clang's semantic analyzer. Unlike languages like Swift, TypeScript, or Kotlin that have flow analysis built into their type systems from the start, C!'s implementation brings this capability to C by layering it onto Clang's traditionally flow-insensitive type system. When you write `if (p)`, the compiler tracks that `p` is non-null within that branch and allows you to use it where a non-nullable pointer is expected—all without runtime overhead.
+
+## Null-Safe C Standard Library
+
+The `clang/nullsafe-headers/` directory contains nullability-annotated versions of the C standard library headers (`string.h`, `stdlib.h`, `stdio.h`). These headers work with **any version of Clang**, not just cbang, but provide the best experience when combined with cbang's flow-sensitive analysis.
+
+### Quick Start
+
+```c
+// Use null-safe headers
+#include "string.h"
+#include "stdlib.h"
+
+void safe_code(const char* input) {
+    if (!input) return;  // Early return for null check
+
+    // After the check, cbang knows input is non-null
+    size_t len = strlen(input);  // OK
+    char* copy = malloc(len + 1);
+
+    if (copy) {  // Check malloc result
+        strcpy(copy, input);  // OK - both non-null
+        free(copy);
+    }
+}
+```
+
+Compile with:
+```bash
+cbang -I/path/to/llvm-project/clang/nullsafe-headers/include mycode.c
+```
+
+See [`clang/nullsafe-headers/README.md`](clang/nullsafe-headers/README.md) for complete documentation.
 
 
 ---
