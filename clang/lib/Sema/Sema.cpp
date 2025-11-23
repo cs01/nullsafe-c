@@ -891,6 +891,33 @@ void Sema::CollectAndCheckedVariables(Expr *Cond,
   }
 }
 
+// cbang: Check if an expression contains any function calls
+// This is used to determine if it's safe to apply narrowing from a condition
+static bool ContainsFunctionCall(Expr *E) {
+  if (!E)
+    return false;
+
+  E = E->IgnoreParenImpCasts();
+
+  // Direct function call
+  if (isa<CallExpr>(E))
+    return true;
+
+  // Recursively check sub-expressions
+  for (Stmt *Child : E->children()) {
+    if (auto *ChildExpr = dyn_cast_or_null<Expr>(Child)) {
+      if (ContainsFunctionCall(ChildExpr))
+        return true;
+    }
+  }
+
+  return false;
+}
+
+bool Sema::ConditionContainsFunctionCalls(Expr *Cond) {
+  return ContainsFunctionCall(Cond);
+}
+
 // cbang: Collect all variables that are dereferenced in an expression.
 // This recursively walks the AST to find UnaryOperator nodes with UO_Deref.
 void Sema::CollectDereferencedVariables(Expr *E,

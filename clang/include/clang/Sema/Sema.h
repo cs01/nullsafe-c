@@ -1206,6 +1206,11 @@ public:
   void CollectAndCheckedVariables(Expr *Cond,
                                   SmallVectorImpl<const VarDecl*> &Vars);
 
+  /// cbang: Check if a condition expression contains any function calls.
+  /// This is used to determine if it's safe to apply narrowing from a condition,
+  /// since function calls can invalidate pointers before we apply narrowing.
+  bool ConditionContainsFunctionCalls(Expr *Cond);
+
   /// cbang: Collect all variables that are dereferenced in an expression.
   /// For example, "tolower(*p) == tolower(*q)" should collect both p and q.
   /// This is used for loop condition narrowing.

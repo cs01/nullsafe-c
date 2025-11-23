@@ -204,13 +204,21 @@ void test_early_return_braces(char* p) {
 }
 
 // AND pattern - narrows inside the then-block
-// Note: some_condition() is called BEFORE entering the then-block during
-// short-circuit evaluation, so narrowing happens after the call.
-// Function calls inside the then-block DO invalidate narrowing (see test_and_deref_funcall).
+// NOTE: If the condition contains function calls, narrowing is NOT applied
+// since the function could invalidate pointers before narrowing takes effect.
 int some_condition(void);
 void test_and_pattern(char* p) {
     if (p && some_condition()) {
-        *p = 'x';  // OK - narrowing happens after some_condition() completes
+        *p = 'x';  // expected-error{{dereferencing nullable pointer of type 'char * _Nullable'}}
+                   // Error - some_condition() could invalidate p before narrowing
+    }
+}
+
+// Test: Simple condition without function calls still narrows
+void test_and_pattern_no_call(char* p, char* q) {
+    if (p && q) {
+        *p = 'x';  // OK - no function calls, narrowing is safe
+        *q = 'y';  // OK
     }
 }
 
@@ -268,8 +276,9 @@ void test_and_deref_chained(char* p, char* q) {
 // Test AND with function call using dereferenced pointer
 int check_char(char c);
 void test_and_deref_funcall(char* p) {
-    if (p && check_char(*p)) {  // OK - p is narrowed before dereference
-        check_char(*p);         // This invalidates narrowing (conservative)
+    if (p && check_char(*p)) {  // Condition has function call
+        check_char(*p);         // expected-error{{dereferencing nullable pointer of type 'char * _Nullable'}}
+                                // Error - narrowing not applied due to function call in condition
         *p = 'x';               // expected-error{{dereferencing nullable pointer of type 'char * _Nullable'}}
     }
 }

@@ -7121,6 +7121,10 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
     }
     if (!IsAssertOrAssume) {
       InvalidateNarrowingInCurrentScope();
+      // Also clear pending AND-expression checks, since function calls in conditions
+      // can invalidate pointers before we apply narrowing
+      // Example: if (p && some_function()) - some_function() could set p to NULL
+      AndExprCheckedVars.clear();
     }
 
     if (BuiltinID)
@@ -7130,11 +7134,13 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
       return ExprError();
     // cbang: Invalidate narrowing for other named decl calls
     InvalidateNarrowingInCurrentScope();
+    AndExprCheckedVars.clear();
   } else {
     if (CheckOtherCall(TheCall, Proto))
       return ExprError();
     // cbang: Invalidate narrowing for other calls (function pointers, etc.)
     InvalidateNarrowingInCurrentScope();
+    AndExprCheckedVars.clear();
   }
 
   return CheckForImmediateInvocation(MaybeBindToTemporary(TheCall), FDecl);

@@ -1517,11 +1517,18 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
   // cbang: Analyze condition for null checks and set up narrowing
   bool IsNegatedCheck = false;
   const VarDecl *CheckedVar = nullptr;
+  bool ConditionHasCalls = false;
   if (!IsConsteval && !Cond.isInvalid() && Cond.get().second) {
+    ConditionHasCalls = Actions.ConditionContainsFunctionCalls(Cond.get().second);
+
     CheckedVar = Actions.AnalyzeConditionForNullCheck(Cond.get().second, IsNegatedCheck);
 
     // Also collect ALL variables from AND expressions (p && q && r)
-    Actions.CollectAndCheckedVariables(Cond.get().second, Actions.AndExprCheckedVars);
+    // BUT: Don't collect if the condition contains function calls, since those
+    // calls could invalidate the pointers before we apply narrowing
+    if (!ConditionHasCalls) {
+      Actions.CollectAndCheckedVariables(Cond.get().second, Actions.AndExprCheckedVars);
+    }
   }
 
   SourceLocation InnerStatementTrailingElseLoc;
@@ -1539,6 +1546,8 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
     // We narrow variables from two sources:
     // 1. AND-expression checks: variables recorded during "p && expr" parsing
     // 2. Traditional null checks: the main condition variable (if present)
+    // However, if the condition contains function calls, we skip narrowing since
+    // those calls could invalidate pointers before we apply narrowing.
     Actions.PushNullabilityNarrowingScope();
 
     // Narrow all variables that were checked in AND expressions
@@ -1547,8 +1556,8 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
     }
     Actions.AndExprCheckedVars.clear();  // Consume the list
 
-    // Also narrow the traditional null-checked variable
-    if (CheckedVar && !IsNegatedCheck) {
+    // Also narrow the traditional null-checked variable (but not if condition has calls)
+    if (CheckedVar && !IsNegatedCheck && !ConditionHasCalls) {
       Actions.NarrowVariableToNonNull(CheckedVar);
     }
 
