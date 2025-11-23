@@ -979,7 +979,15 @@ void Sema::HandleAssertNarrowing(FunctionDecl *FDecl, CallExpr *TheCall) {
 
   Expr *AssertCondition = TheCall->getArg(0);
 
-  // Extract null-check patterns from the condition
+  // Collect ALL variables from AND expressions (p && q && r)
+  SmallVector<const VarDecl*, 8> CheckedVars;
+  CollectAndCheckedVariables(AssertCondition, CheckedVars);
+
+  for (const VarDecl *VD : CheckedVars) {
+    NarrowVariableToNonNull(VD);
+  }
+
+  // Also handle the simple case returned by AnalyzeConditionForNullCheck
   bool IsNegated = false;
   const VarDecl *VD = AnalyzeConditionForNullCheck(AssertCondition, IsNegated);
 
