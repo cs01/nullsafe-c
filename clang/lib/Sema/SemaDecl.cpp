@@ -13986,6 +13986,40 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
           }
         }
       }
+
+      // cbang: Pointer arithmetic narrowing - if initializing with pointer arithmetic
+      // on a narrowed variable, narrow the new variable too (q = p + 1)
+      if (const auto *BinOp = dyn_cast<BinaryOperator>(Init->IgnoreParenImpCasts())) {
+        // Check for pointer + integer or integer + pointer
+        if (BinOp->getOpcode() == BO_Add || BinOp->getOpcode() == BO_Sub) {
+          Expr *PointerOperand = nullptr;
+
+          // Determine which operand is the pointer
+          if (BinOp->getLHS()->getType()->isPointerType()) {
+            PointerOperand = BinOp->getLHS();
+          } else if (BinOp->getRHS()->getType()->isPointerType()) {
+            PointerOperand = BinOp->getRHS();
+          }
+
+          // If we found a pointer operand, check if it's a narrowed variable
+          if (PointerOperand) {
+            if (const auto *DRE = dyn_cast<DeclRefExpr>(PointerOperand->IgnoreParenImpCasts())) {
+              if (const auto *SourceVD = dyn_cast<VarDecl>(DRE->getDecl())) {
+                // Check if the source variable is narrowed to nonnull
+                QualType NarrowedType = GetNarrowedType(SourceVD);
+                if (!NarrowedType.isNull()) {
+                  if (auto NarrowedNullability = NarrowedType->getNullability()) {
+                    if (*NarrowedNullability == NullabilityKind::NonNull) {
+                      // Source is narrowed to nonnull, so narrow the destination too
+                      NarrowVariableToNonNull(VDecl);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
 
     IsParenListInit = !InitSeq.steps().empty() &&
