@@ -71,6 +71,8 @@ The difference:
 
 Both preserve narrowing since they can't invalidate pointers.
 
+**Good news**: Many standard library functions already have these attributes! The GNU C library's `ctype.h`, `string.h`, and other headers already mark functions like `tolower()`, `strlen()`, etc. as pure/const, so cbang automatically recognizes them without any special configuration.
+
 ## Null-Safe C Standard Library
 
 The `clang/nullsafe-headers/` directory contains nullability-annotated versions of the C standard library headers (`string.h`, `stdlib.h`, `stdio.h`). These headers work with **any version of Clang**, not just cbang, but provide the best experience when combined with cbang's flow-sensitive analysis.
