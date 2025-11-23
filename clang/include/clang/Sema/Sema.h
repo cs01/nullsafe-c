@@ -1216,13 +1216,11 @@ public:
   /// This is used for early-return narrowing.
   bool StatementAlwaysTerminates(Stmt *S);
 
-  /// cbang: Push a new context for tracking AND-expression narrowings.
-  /// Call this before parsing a condition that may contain AND expressions.
-  void PushAndExprNarrowingContext();
-
-  /// cbang: Pop AND-expression narrowing context.
-  /// Call this after finishing the statement that used the condition.
-  void PopAndExprNarrowingContext();
+  /// cbang: Record that a variable was checked for null in an AND expression.
+  /// Parser calls this when it sees patterns like "p && expr".
+  void RecordAndExprNullCheck(const VarDecl *VD) {
+    if (VD) AndExprCheckedVars.push_back(VD);
+  }
 
   /// Warn when implicitly casting 0 to nullptr.
   void diagnoseZeroToNullptrConversion(CastKind Kind, const Expr *E);
@@ -1287,10 +1285,11 @@ public:
   /// This is a stack of maps to support nested scopes.
   llvm::SmallVector<llvm::DenseMap<const VarDecl*, QualType>, 4> NullabilityNarrowingScopes;
 
-  /// cbang: Track variables narrowed within AND expressions.
-  /// Used to coordinate between BinOp analysis and ParseIfStatement.
-  /// When we see "p && expr", we narrow p before analyzing expr, and record it here.
-  llvm::SmallVector<llvm::SmallVector<const VarDecl*, 4>, 4> AndExprNarrowedVars;
+  /// cbang: Track variables checked for null in AND expressions during condition parsing.
+  /// Parser populates this as it encounters "p && expr" patterns, and ParseIfStatement
+  /// consumes it to know which variables to narrow. This avoids pushing narrowing scopes
+  /// during expression parsing which can corrupt parser state.
+  llvm::SmallVector<const VarDecl*, 8> AndExprCheckedVars;
 
   /// The kind of translation unit we are processing.
   ///

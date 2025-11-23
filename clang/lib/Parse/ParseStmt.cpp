@@ -1475,10 +1475,6 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
   SourceLocation RParen;
   std::optional<bool> ConstexprCondition;
 
-  // cbang: Remember the narrowing scope depth before parsing the condition.
-  // This allows us to pop only scopes created during AND-expression parsing.
-  size_t ScopeDepthBeforeCondition = Actions.NullabilityNarrowingScopes.size();
-
   if (!IsConsteval) {
 
     if (ParseParenExprOrCondition(&InitStmt, Cond, IfLoc,
@@ -1536,30 +1532,20 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
       ShouldEnter = true;
     }
 
-    // cbang: Push narrowing scope for then-branch
-    //
-    // Before pushing the if-body scope, we need to consolidate any narrowing scopes
-    // that were pushed during AND-expression parsing. For example, if the condition
-    // is "p && q && *p", we may have pushed scopes for both `p` and `q` during parsing.
-    // We pop those scopes and re-narrow the variables in the new if-body scope.
-    llvm::SmallVector<const VarDecl*, 4> AndNarrowedVars;
-    while (Actions.NullabilityNarrowingScopes.size() > ScopeDepthBeforeCondition) {
-      // Collect all variables narrowed in this scope
-      for (const auto &Entry : Actions.NullabilityNarrowingScopes.back()) {
-        AndNarrowedVars.push_back(Entry.first);
-      }
-      Actions.PopNullabilityNarrowingScope();
-    }
-
-    // Now push the if-body scope and re-apply all narrowings
+    // cbang: Push narrowing scope for then-branch and apply narrowing.
+    // We narrow variables from two sources:
+    // 1. AND-expression checks: variables recorded during "p && expr" parsing
+    // 2. Traditional null checks: the main condition variable (if present)
     Actions.PushNullabilityNarrowingScope();
-    for (const VarDecl *VD : AndNarrowedVars) {
+
+    // Narrow all variables that were checked in AND expressions
+    for (const VarDecl *VD : Actions.AndExprCheckedVars) {
       Actions.NarrowVariableToNonNull(VD);
     }
+    Actions.AndExprCheckedVars.clear();  // Consume the list
 
-    // Also apply narrowing from the traditional null check analysis
+    // Also narrow the traditional null-checked variable
     if (CheckedVar && !IsNegatedCheck) {
-      // In the then-branch, the variable is known to be non-null
       Actions.NarrowVariableToNonNull(CheckedVar);
     }
 

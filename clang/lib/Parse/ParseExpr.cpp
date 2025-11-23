@@ -443,16 +443,19 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
 
     // cbang: For AND expressions (&&), narrow the LHS variable(s) before parsing RHS.
     // This allows patterns like "if (p && *p == 'x')" to work without errors.
+    // We also record them so ParseIfStatement knows to consolidate scopes.
     if (OpToken.is(tok::ampamp) && !LHS.isInvalid()) {
       // Collect all variables from the LHS (handles both simple checks and compound AND expressions)
       SmallVector<const VarDecl*, 4> CheckedVars;
       Actions.CollectAndCheckedVariables(LHS.get(), CheckedVars);
 
       if (!CheckedVars.empty()) {
-        // Push a narrowing scope and narrow all collected variables
+        // Push a narrowing scope and narrow all collected variables for RHS analysis
         Actions.PushNullabilityNarrowingScope();
         for (const VarDecl *VD : CheckedVars) {
           Actions.NarrowVariableToNonNull(VD);
+          // Also record for ParseIfStatement to consolidate later
+          Actions.RecordAndExprNullCheck(VD);
         }
       }
     }

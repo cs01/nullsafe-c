@@ -720,16 +720,6 @@ void Sema::PopNullabilityNarrowingScope() {
   }
 }
 
-void Sema::PushAndExprNarrowingContext() {
-  AndExprNarrowedVars.emplace_back();
-}
-
-void Sema::PopAndExprNarrowingContext() {
-  if (!AndExprNarrowedVars.empty()) {
-    AndExprNarrowedVars.pop_back();
-  }
-}
-
 void Sema::NarrowVariableToNonNull(const VarDecl *VD) {
   if (!VD || NullabilityNarrowingScopes.empty())
     return;
