@@ -1217,6 +1217,10 @@ public:
   /// and narrow variables accordingly.
   void HandleAssertNarrowing(FunctionDecl *FDecl, CallExpr *TheCall);
 
+  /// cbang: Invalidate all narrowing in the current scope.
+  /// This is called after function calls to be conservative about side effects.
+  void InvalidateNarrowingInCurrentScope();
+
   /// cbang: Check if a statement always terminates (return/break/continue/throw).
   /// This is used for early-return narrowing.
   bool StatementAlwaysTerminates(Stmt *S);

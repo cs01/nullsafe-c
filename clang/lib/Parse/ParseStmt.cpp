@@ -1848,9 +1848,24 @@ StmtResult Parser::ParseWhileStatement(SourceLocation *TrailingElseLoc,
   MisleadingIndentationChecker MIChecker(*this, MSK_while, WhileLoc);
 
   // cbang: Loop condition narrowing
-  // If the condition dereferences pointers, they must be non-null inside the loop
+  // If the condition checks/dereferences pointers, they must be non-null inside the loop
   Actions.PushNullabilityNarrowingScope();
   if (!Cond.isInvalid() && Cond.get().second) {
+    // Handle "while (p)" - analyze for null checks
+    bool IsNegated = false;
+    const VarDecl *CheckedVar = Actions.AnalyzeConditionForNullCheck(Cond.get().second, IsNegated);
+    if (CheckedVar && !IsNegated) {
+      Actions.NarrowVariableToNonNull(CheckedVar);
+    }
+
+    // Also collect from AND expressions: while (p && q)
+    SmallVector<const VarDecl*, 8> AndCheckedVars;
+    Actions.CollectAndCheckedVariables(Cond.get().second, AndCheckedVars);
+    for (const VarDecl *VD : AndCheckedVars) {
+      Actions.NarrowVariableToNonNull(VD);
+    }
+
+    // Handle dereferences in condition: while (*p == 'x')
     SmallVector<const VarDecl*, 4> DereferencedVars;
     Actions.CollectDereferencedVariables(Cond.get().second, DereferencedVars);
     for (const VarDecl *VD : DereferencedVars) {
@@ -2338,9 +2353,23 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc,
   MisleadingIndentationChecker MIChecker(*this, MSK_for, ForLoc);
 
   // cbang: Loop condition narrowing for for-loops
-  // If the condition dereferences pointers, they must be non-null inside the loop
   Actions.PushNullabilityNarrowingScope();
   if (!SecondPart.isInvalid() && SecondPart.get().second) {
+    // Handle "for (; p; )" - analyze for null checks
+    bool IsNegated = false;
+    const VarDecl *CheckedVar = Actions.AnalyzeConditionForNullCheck(SecondPart.get().second, IsNegated);
+    if (CheckedVar && !IsNegated) {
+      Actions.NarrowVariableToNonNull(CheckedVar);
+    }
+
+    // Also collect from AND expressions: for (; p && q; )
+    SmallVector<const VarDecl*, 8> AndCheckedVars;
+    Actions.CollectAndCheckedVariables(SecondPart.get().second, AndCheckedVars);
+    for (const VarDecl *VD : AndCheckedVars) {
+      Actions.NarrowVariableToNonNull(VD);
+    }
+
+    // Handle dereferences in condition: for (; *p == 'x'; )
     SmallVector<const VarDecl*, 4> DereferencedVars;
     Actions.CollectDereferencedVariables(SecondPart.get().second, DereferencedVars);
     for (const VarDecl *VD : DereferencedVars) {

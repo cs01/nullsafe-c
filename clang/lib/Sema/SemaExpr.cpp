@@ -7108,14 +7108,32 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
     // cbang: Handle assert() and __builtin_assume() narrowing
     HandleAssertNarrowing(FDecl, TheCall);
 
+    // cbang: Invalidate narrowing after function calls (conservative approach)
+    // Skip invalidation for assert() and __builtin_assume() since they don't have side effects
+    // and we want their narrowing to persist
+    bool IsAssertOrAssume = false;
+    if (FDecl) {
+      IdentifierInfo *FnInfo = FDecl->getIdentifier();
+      StringRef FnName = FnInfo ? FnInfo->getName() : "";
+      IsAssertOrAssume = (FnName == "assert") ||
+                         (FDecl->getBuiltinID() == Builtin::BI__builtin_assume);
+    }
+    if (!IsAssertOrAssume) {
+      InvalidateNarrowingInCurrentScope();
+    }
+
     if (BuiltinID)
       return CheckBuiltinFunctionCall(FDecl, BuiltinID, TheCall);
   } else if (NDecl) {
     if (CheckPointerCall(NDecl, TheCall, Proto))
       return ExprError();
+    // cbang: Invalidate narrowing for other named decl calls
+    InvalidateNarrowingInCurrentScope();
   } else {
     if (CheckOtherCall(TheCall, Proto))
       return ExprError();
+    // cbang: Invalidate narrowing for other calls (function pointers, etc.)
+    InvalidateNarrowingInCurrentScope();
   }
 
   return CheckForImmediateInvocation(MaybeBindToTemporary(TheCall), FDecl);

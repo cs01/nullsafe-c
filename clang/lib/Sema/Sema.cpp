@@ -998,6 +998,17 @@ void Sema::HandleAssertNarrowing(FunctionDecl *FDecl, CallExpr *TheCall) {
   }
 }
 
+// cbang: Invalidate all narrowing in the current scope
+void Sema::InvalidateNarrowingInCurrentScope() {
+  if (NullabilityNarrowingScopes.empty())
+    return;
+
+  // Clear all narrowed variables in the current scope
+  // This is conservative: any function call could have side effects
+  // that make our narrowing assumptions invalid
+  NullabilityNarrowingScopes.back().clear();
+}
+
 // Generate diagnostics when adding or removing effects in a type conversion.
 void Sema::diagnoseFunctionEffectConversion(QualType DstType, QualType SrcType,
                                             SourceLocation Loc) {
