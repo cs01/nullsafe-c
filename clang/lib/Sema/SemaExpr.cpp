@@ -7112,8 +7112,9 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
     // Skip invalidation for assert() and __builtin_assume() since they don't have side effects
     // and we want their narrowing to persist
     bool IsAssertOrAssume = false;
+    IdentifierInfo *FnInfo = nullptr;
     if (FDecl) {
-      IdentifierInfo *FnInfo = FDecl->getIdentifier();
+      FnInfo = FDecl->getIdentifier();
       StringRef FnName = FnInfo ? FnInfo->getName() : "";
       IsAssertOrAssume = (FnName == "assert") ||
                          (FDecl->getBuiltinID() == Builtin::BI__builtin_assume);

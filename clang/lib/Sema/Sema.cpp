@@ -1003,10 +1003,12 @@ void Sema::InvalidateNarrowingInCurrentScope() {
   if (NullabilityNarrowingScopes.empty())
     return;
 
-  // Clear all narrowed variables in the current scope
-  // This is conservative: any function call could have side effects
-  // that make our narrowing assumptions invalid
-  NullabilityNarrowingScopes.back().clear();
+  // Clear ALL narrowing in all scopes, not just the current one.
+  // This is conservative: function calls can have arbitrary side effects through
+  // global state, so we can't trust any narrowing after a function call.
+  for (auto &Scope : NullabilityNarrowingScopes) {
+    Scope.clear();
+  }
 }
 
 // Generate diagnostics when adding or removing effects in a type conversion.

@@ -3,6 +3,9 @@
 // Test the *! (starbang) syntax for non-nullable pointers
 // This tests Phase 2.5: nullable-to-nonnull conversion errors
 
+// Forward declarations for test functions
+void assert(int);
+
 typedef int*! nonnull_int_ptr;
 typedef int* nullable_int_ptr;
 
@@ -201,10 +204,45 @@ void test_early_return_braces(char* p) {
 }
 
 // AND pattern - narrows inside the then-block
+// Note: some_condition() is called BEFORE entering the then-block during
+// short-circuit evaluation, so narrowing happens after the call.
+// Function calls inside the then-block DO invalidate narrowing (see test_and_deref_funcall).
 int some_condition(void);
 void test_and_pattern(char* p) {
     if (p && some_condition()) {
-        *p = 'x';  // OK - p is narrowed inside the block
+        *p = 'x';  // OK - narrowing happens after some_condition() completes
+    }
+}
+
+// Test: Function calls invalidate narrowing (Phase 4)
+// This is conservative but necessary since functions can have side effects
+void arbitrary_function(void);
+void test_function_call_invalidation(int* p) {
+    if (p) {
+        *p = 42;            // OK - p is narrowed
+        arbitrary_function(); // Invalidates narrowing
+        *p = 23;            // expected-error{{dereferencing nullable pointer of type 'int * _Nullable'}}
+    }
+}
+
+// Test: Multiple function calls continue to keep narrowing invalidated
+void test_multiple_calls_invalidation(int* p) {
+    if (p) {
+        *p = 1;             // OK - p is narrowed
+        arbitrary_function();
+        *p = 2;             // expected-error{{dereferencing nullable pointer of type 'int * _Nullable'}}
+        arbitrary_function();
+        *p = 3;             // expected-error{{dereferencing nullable pointer of type 'int * _Nullable'}}
+    }
+}
+
+// Test: Can re-narrow with assert after invalidation
+void test_renarrow_after_invalidation(int* p) {
+    if (p) {
+        *p = 1;             // OK - p is narrowed
+        arbitrary_function(); // Invalidates
+        assert(p != 0);     // Re-narrow
+        *p = 2;             // OK - narrowed again by assert
     }
 }
 
@@ -231,7 +269,8 @@ void test_and_deref_chained(char* p, char* q) {
 int check_char(char c);
 void test_and_deref_funcall(char* p) {
     if (p && check_char(*p)) {  // OK - p is narrowed before dereference
-        *p = 'x';               // OK
+        check_char(*p);         // This invalidates narrowing (conservative)
+        *p = 'x';               // expected-error{{dereferencing nullable pointer of type 'char * _Nullable'}}
     }
 }
 
