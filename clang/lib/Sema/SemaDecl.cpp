@@ -13972,6 +13972,22 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
     }
 
     Init = Result.getAs<Expr>();
+
+    // cbang: Check for null initialization of nonnull pointers
+    if (VDecl && Init) {
+      // Check if initializing a nonnull pointer with a null constant
+      QualType VDeclType = VDecl->getType();
+      if (auto Nullability = VDeclType->getNullability()) {
+        if (*Nullability == NullabilityKind::NonNull) {
+          // Check if Init is a null pointer constant
+          if (Init->isNullPointerConstant(Context, Expr::NPC_ValueDependentIsNotNull)) {
+            Diag(Init->getBeginLoc(), diag::err_null_arg)
+                << Init->getSourceRange();
+          }
+        }
+      }
+    }
+
     IsParenListInit = !InitSeq.steps().empty() &&
                       InitSeq.step_begin()->Kind ==
                           InitializationSequence::SK_ParenthesizedListInit;
