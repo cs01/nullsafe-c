@@ -31,7 +31,8 @@
       "Bash(build/bin/llvm-lit:*)",
       "Bash(build/bin/clang:*)",
       "Bash(../build/bin/clang:*)",
-      "Bash(/opt/llvm/bin/clang:*)"
+      "Bash(/opt/llvm/bin/clang:*)",
+      "Bash(gdb:*)"
     ],
     "deny": [],
     "ask": []

@@ -1519,6 +1519,9 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
   const VarDecl *CheckedVar = nullptr;
   if (!IsConsteval && !Cond.isInvalid() && Cond.get().second) {
     CheckedVar = Actions.AnalyzeConditionForNullCheck(Cond.get().second, IsNegatedCheck);
+
+    // Also collect ALL variables from AND expressions (p && q && r)
+    Actions.CollectAndCheckedVariables(Cond.get().second, Actions.AndExprCheckedVars);
   }
 
   SourceLocation InnerStatementTrailingElseLoc;
@@ -1619,14 +1622,13 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
     }
 
     // cbang: Push narrowing scope for else-branch
-    // In the else branch, if the condition was "if (p)", then p is null
     Actions.PushNullabilityNarrowingScope();
-    // Note: For now, we don't narrow in the else branch since we can't
-    // prove the variable is null (could be uninitialized or have other values).
-    // We could add this as a future enhancement.
-    // If we had: if (CheckedVar && IsNegatedCheck) {
-    //   Actions.NarrowVariableToNull(CheckedVar);  // Future work
-    // }
+
+    // Narrow in else-branch for negated conditions
+    // if (!p) { } else { p is nonnull here }
+    if (CheckedVar && IsNegatedCheck) {
+      Actions.NarrowVariableToNonNull(CheckedVar);
+    }
 
     EnterExpressionEvaluationContext PotentiallyDiscarded(
         Actions, Context, nullptr,
