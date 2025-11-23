@@ -330,12 +330,32 @@ void test_struct_deref(struct Point* p) {
     p->y = 20;  // TODO: Should error but doesn't with -nostdsysteminc (lit test issue)
 }
 
-// Test: Chained dereferences
+// Test: Chained dereferences (multi-level pointers)
 void test_chained_deref(int** pp) {
     if (pp) {
         // pp is nonnull, but *pp is still nullable (inner pointer)
         *pp = 0;  // OK - can assign null to nullable
         // **pp would need another check
+    }
+
+    if (pp && *pp) {
+        **pp = 42;  // OK - both levels narrowed
+    }
+}
+
+// Test: Triple pointers
+void test_triple_pointers(int*** ppp) {
+    if (ppp && *ppp && **ppp) {
+        ***ppp = 42;  // OK - all three levels narrowed
+    }
+}
+
+// Test: Declared nonnull multi-level
+void test_nonnull_outer_ptr(int**! pp) {
+    *pp = 0;  // OK - pp is nonnull by declaration
+
+    if (*pp) {
+        **pp = 42;  // OK - *pp is narrowed
     }
 }
 
