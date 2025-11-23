@@ -958,6 +958,38 @@ bool Sema::StatementAlwaysTerminates(Stmt *S) {
   return false;
 }
 
+// cbang: Handle narrowing from assert() and __builtin_assume()
+void Sema::HandleAssertNarrowing(FunctionDecl *FDecl, CallExpr *TheCall) {
+  if (!FDecl || NullabilityNarrowingScopes.empty())
+    return;
+
+  // Check if this is assert() or __builtin_assume()
+  IdentifierInfo *FnInfo = FDecl->getIdentifier();
+  StringRef FnName = FnInfo ? FnInfo->getName() : "";
+
+  bool IsAssert = (FnName == "assert");
+  bool IsBuiltinAssume = (FDecl->getBuiltinID() == Builtin::BI__builtin_assume);
+
+  if (!IsAssert && !IsBuiltinAssume)
+    return;
+
+  // Get the first argument (the condition being asserted)
+  if (TheCall->getNumArgs() == 0)
+    return;
+
+  Expr *AssertCondition = TheCall->getArg(0);
+
+  // Extract null-check patterns from the condition
+  bool IsNegated = false;
+  const VarDecl *VD = AnalyzeConditionForNullCheck(AssertCondition, IsNegated);
+
+  // For "assert(p)" or "assert(p != NULL)", narrow p to nonnull
+  // For "assert(!p)", we can't narrow (asserting null doesn't help later code)
+  if (VD && !IsNegated) {
+    NarrowVariableToNonNull(VD);
+  }
+}
+
 // Generate diagnostics when adding or removing effects in a type conversion.
 void Sema::diagnoseFunctionEffectConversion(QualType DstType, QualType SrcType,
                                             SourceLocation Loc) {

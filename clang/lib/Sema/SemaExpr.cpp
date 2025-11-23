@@ -7105,6 +7105,9 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
 
     checkFortifiedBuiltinMemoryFunction(FDecl, TheCall);
 
+    // cbang: Handle assert() and __builtin_assume() narrowing
+    HandleAssertNarrowing(FDecl, TheCall);
+
     if (BuiltinID)
       return CheckBuiltinFunctionCall(FDecl, BuiltinID, TheCall);
   } else if (NDecl) {

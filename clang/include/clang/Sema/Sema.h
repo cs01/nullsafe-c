@@ -1212,6 +1212,11 @@ public:
   void CollectDereferencedVariables(Expr *E,
                                     SmallVectorImpl<const VarDecl*> &Vars);
 
+  /// cbang: Handle narrowing from assert() and __builtin_assume() calls.
+  /// If the function is assert or __builtin_assume, analyze the condition
+  /// and narrow variables accordingly.
+  void HandleAssertNarrowing(FunctionDecl *FDecl, CallExpr *TheCall);
+
   /// cbang: Check if a statement always terminates (return/break/continue/throw).
   /// This is used for early-return narrowing.
   bool StatementAlwaysTerminates(Stmt *S);
