@@ -203,6 +203,20 @@ void test_early_return_braces(char* p) {
     *p = 'x';  // OK
 }
 
+// Test: Early goto (common in C error handling)
+void test_early_goto(char* p, char* q) {
+    if (!p || !q)
+        goto error;
+
+    // After goto, both are narrowed
+    *p = 'x';  // OK
+    *q = 'y';  // OK
+    return;
+
+error:
+    return;
+}
+
 // AND pattern - narrows inside the then-block
 // NOTE: If the condition contains function calls, narrowing is NOT applied
 // since the function could invalidate pointers before narrowing takes effect.

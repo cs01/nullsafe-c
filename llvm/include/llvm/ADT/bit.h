@@ -48,6 +48,11 @@
 #define BIG_ENDIAN 4321
 #define LITTLE_ENDIAN 1234
 #define BYTE_ORDER BIG_ENDIAN
+#elif defined(__wasi__)
+/* BINJI_HACK: WASI/WebAssembly is always little-endian */
+#define BIG_ENDIAN 4321
+#define LITTLE_ENDIAN 1234
+#define BYTE_ORDER LITTLE_ENDIAN
 #else
 #if !defined(BYTE_ORDER) && !defined(_WIN32)
 #include <machine/endian.h>

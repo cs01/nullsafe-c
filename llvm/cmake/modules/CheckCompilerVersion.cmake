@@ -69,8 +69,9 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
       message(FATAL_ERROR "Host Clang must have at least -fms-compatibility-version=${MSVC_MIN}, your version is ${CMAKE_CXX_SIMULATE_VERSION}.")
     endif()
     set(CLANG_CL 1)
-  elseif(NOT LLVM_ENABLE_LIBCXX)
+  elseif(NOT LLVM_ENABLE_LIBCXX AND NOT EMSCRIPTEN)
     # Test that we aren't using too old of a version of libstdc++.
+    # BINJI_HACK: Skip for Emscripten which has its own C++ library
     set(OLD_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
     set(OLD_CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES})
     set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -std=c++0x")

@@ -968,7 +968,7 @@ bool Sema::StatementAlwaysTerminates(Stmt *S) {
     return false;
 
   // Direct terminating statements
-  if (isa<ReturnStmt>(S) || isa<BreakStmt>(S) || isa<ContinueStmt>(S))
+  if (isa<ReturnStmt>(S) || isa<BreakStmt>(S) || isa<ContinueStmt>(S) || isa<GotoStmt>(S))
     return true;
 
   // CXXThrowExpr for C++
