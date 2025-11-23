@@ -891,22 +891,40 @@ void Sema::CollectAndCheckedVariables(Expr *Cond,
   }
 }
 
-// cbang: Check if an expression contains any function calls
+// cbang: Check if an expression contains any function calls that could have side effects
 // This is used to determine if it's safe to apply narrowing from a condition
-static bool ContainsFunctionCall(Expr *E) {
+static bool ContainsSideEffectingCall(Expr *E) {
   if (!E)
     return false;
 
   E = E->IgnoreParenImpCasts();
 
-  // Direct function call
-  if (isa<CallExpr>(E))
+  // Check for function call
+  if (auto *CE = dyn_cast<CallExpr>(E)) {
+    // Check if it's a call to a known-pure function
+    if (auto *Callee = CE->getDirectCallee()) {
+      // Pure or const functions don't have side effects
+      if (Callee->hasAttr<PureAttr>() || Callee->hasAttr<ConstAttr>())
+        return false;
+
+      // Also skip assert and __builtin_assume
+      if (auto *FnInfo = Callee->getIdentifier()) {
+        StringRef FnName = FnInfo->getName();
+        if (FnName == "assert")
+          return false;
+      }
+      if (Callee->getBuiltinID() == Builtin::BI__builtin_assume)
+        return false;
+    }
+
+    // This is a call to a potentially side-effecting function
     return true;
+  }
 
   // Recursively check sub-expressions
   for (Stmt *Child : E->children()) {
     if (auto *ChildExpr = dyn_cast_or_null<Expr>(Child)) {
-      if (ContainsFunctionCall(ChildExpr))
+      if (ContainsSideEffectingCall(ChildExpr))
         return true;
     }
   }
@@ -915,7 +933,7 @@ static bool ContainsFunctionCall(Expr *E) {
 }
 
 bool Sema::ConditionContainsFunctionCalls(Expr *Cond) {
-  return ContainsFunctionCall(Cond);
+  return ContainsSideEffectingCall(Cond);
 }
 
 // cbang: Collect all variables that are dereferenced in an expression.

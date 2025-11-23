@@ -7109,17 +7109,26 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
     HandleAssertNarrowing(FDecl, TheCall);
 
     // cbang: Invalidate narrowing after function calls (conservative approach)
-    // Skip invalidation for assert() and __builtin_assume() since they don't have side effects
-    // and we want their narrowing to persist
-    bool IsAssertOrAssume = false;
+    // Skip invalidation for:
+    // 1. assert() and __builtin_assume() - side-effect free and provide guarantees
+    // 2. Pure/const functions - don't modify global state
+    bool ShouldInvalidate = true;
     IdentifierInfo *FnInfo = nullptr;
     if (FDecl) {
       FnInfo = FDecl->getIdentifier();
       StringRef FnName = FnInfo ? FnInfo->getName() : "";
-      IsAssertOrAssume = (FnName == "assert") ||
-                         (FDecl->getBuiltinID() == Builtin::BI__builtin_assume);
+
+      // Check for assert/assume
+      bool IsAssertOrAssume = (FnName == "assert") ||
+                              (FDecl->getBuiltinID() == Builtin::BI__builtin_assume);
+
+      // Check for pure/const attributes (functions with no side effects)
+      bool IsPureOrConst = FDecl->hasAttr<PureAttr>() || FDecl->hasAttr<ConstAttr>();
+
+      ShouldInvalidate = !IsAssertOrAssume && !IsPureOrConst;
     }
-    if (!IsAssertOrAssume) {
+
+    if (ShouldInvalidate) {
       InvalidateNarrowingInCurrentScope();
       // Also clear pending AND-expression checks, since function calls in conditions
       // can invalidate pointers before we apply narrowing

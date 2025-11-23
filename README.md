@@ -18,16 +18,58 @@ The cbang compiler is a fork of the clang compiler with the addition of null saf
 - [x] Typedef support for nullability annotations
 - [x] Real-world code compatibility (tested on cJSON, SQLite)
 - [x] IDE tooling (use C!'s `clangd` binary)
+- [x] **Early-exit narrowing** with `return`, `goto`, `break`, `continue`
+- [x] **Function call invalidation**: Conservative by default - all functions assumed to have side effects
+- [x] **Pure function support**: Use `__attribute__((pure))` or `__attribute__((const))` to mark side-effect-free functions
+- [x] **Multi-level pointer narrowing** (`int**`, `int***`, etc.)
+- [x] **Pointer arithmetic narrowing** (`q = p + 1` preserves narrowing)
+- [x] **Standard library nullability annotations** (see `clang/nullsafe-headers/`)
 
 ### Future Work
-- [ ] Multi-level pointer support (`**!`, `***!` syntax)
-- [x] **Standard library nullability annotations** (see `clang/nullsafe-headers/`)
+- [ ] Direct assignment narrowing (`q = p` should narrow `q` if `p` is narrowed)
 - [ ] Bounds safety integration (combine with `-fbounds-safety`)
 - [ ] Interop mode for gradual adoption in existing codebases
 
 ## How It Works
 
 cbang implements **flow-sensitive nullability analysis** directly in Clang's semantic analyzer. Unlike languages like Swift, TypeScript, or Kotlin that have flow analysis built into their type systems from the start, C!'s implementation brings this capability to C by layering it onto Clang's traditionally flow-insensitive type system. When you write `if (p)`, the compiler tracks that `p` is non-null within that branch and allows you to use it where a non-nullable pointer is expected—all without runtime overhead.
+
+### Function Call Invalidation
+
+By default, **cbang assumes all function calls have side effects** and conservatively invalidates narrowing:
+
+```c
+void some_function(void);
+
+void example(int* p) {
+    if (p) {
+        *p = 1;           // OK - p is narrowed to non-null
+        some_function();  // Invalidates narrowing
+        *p = 2;           // ERROR - p is nullable again
+    }
+}
+```
+
+This is conservative but safe - functions can modify global state, escaped pointers, or have other side effects.
+
+**Pure Functions**: Mark side-effect-free functions with `__attribute__((pure))` or `__attribute__((const))` to preserve narrowing:
+
+```c
+int tolower(int c) __attribute__((const));  // No side effects
+
+void example(char* p) {
+    if (p) {
+        tolower(*p);  // Pure function - doesn't invalidate
+        *p = 'x';     // OK - p is still narrowed
+    }
+}
+```
+
+The difference:
+- `__attribute__((const))`: Function only uses its arguments (e.g., `tolower`, `abs`)
+- `__attribute__((pure))`: Function may read global state but doesn't modify it (e.g., `strlen`)
+
+Both preserve narrowing since they can't invalidate pointers.
 
 ## Null-Safe C Standard Library
 
