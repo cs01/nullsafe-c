@@ -20,7 +20,7 @@ void takes_nullable(int* p) {
         // (see Phase 4 - narrowing invalidation)
         *p = 23;
     } else {
-        *p=7;  // expected-error{{dereferencing nullable pointer of type 'int * _Nullable'}}
+        *p=7;  // expected-warning{{dereferencing nullable pointer of type 'int * _Nullable'}}
                // Error - in else branch, we know p IS null
     }
 }
@@ -153,7 +153,7 @@ void test_flow_dereference(int* p) {
 }
 
 void test_flow_dereference_no_check(int* p) {
-    *p = 42;  // expected-error{{dereferencing nullable pointer of type 'int * _Nullable'}}
+    *p = 42;  // expected-warning{{dereferencing nullable pointer of type 'int * _Nullable'}}
 }
 
 // ============================================================================
@@ -223,7 +223,7 @@ error:
 int some_condition(void);
 void test_and_pattern(char* p) {
     if (p && some_condition()) {
-        *p = 'x';  // expected-error{{dereferencing nullable pointer of type 'char * _Nullable'}}
+        *p = 'x';  // expected-warning{{dereferencing nullable pointer of type 'char * _Nullable'}}
                    // Error - some_condition() could invalidate p before narrowing
     }
 }
@@ -243,7 +243,7 @@ void test_function_call_invalidation(int* p) {
     if (p) {
         *p = 42;            // OK - p is narrowed
         arbitrary_function(); // Invalidates narrowing
-        *p = 23;            // expected-error{{dereferencing nullable pointer of type 'int * _Nullable'}}
+        *p = 23;            // expected-warning{{dereferencing nullable pointer of type 'int * _Nullable'}}
     }
 }
 
@@ -252,9 +252,9 @@ void test_multiple_calls_invalidation(int* p) {
     if (p) {
         *p = 1;             // OK - p is narrowed
         arbitrary_function();
-        *p = 2;             // expected-error{{dereferencing nullable pointer of type 'int * _Nullable'}}
+        *p = 2;             // expected-warning{{dereferencing nullable pointer of type 'int * _Nullable'}}
         arbitrary_function();
-        *p = 3;             // expected-error{{dereferencing nullable pointer of type 'int * _Nullable'}}
+        *p = 3;             // expected-warning{{dereferencing nullable pointer of type 'int * _Nullable'}}
     }
 }
 
@@ -291,9 +291,9 @@ void test_and_deref_chained(char* p, char* q) {
 int check_char(char c);
 void test_and_deref_funcall(char* p) {
     if (p && check_char(*p)) {  // Condition has function call
-        check_char(*p);         // expected-error{{dereferencing nullable pointer of type 'char * _Nullable'}}
+        check_char(*p);         // expected-warning{{dereferencing nullable pointer of type 'char * _Nullable'}}
                                 // Error - narrowing not applied due to function call in condition
-        *p = 'x';               // expected-error{{dereferencing nullable pointer of type 'char * _Nullable'}}
+        *p = 'x';               // expected-warning{{dereferencing nullable pointer of type 'char * _Nullable'}}
     }
 }
 
@@ -313,7 +313,7 @@ void test_while_loop(int* p) {
         *p = 42;  // OK - p is narrowed inside the loop body
         p = 0;    // Break the loop
     }
-    *p = 0;  // expected-error{{dereferencing nullable pointer of type 'int * _Nullable'}}
+    *p = 0;  // expected-warning{{dereferencing nullable pointer of type 'int * _Nullable'}}
              // Error - outside loop, p is nullable again
 }
 
@@ -328,7 +328,7 @@ void test_for_loop(int* p) {
 void test_else_narrowing(int* p) {
     if (!p) {
         // p is known null here
-        *p = 42;  // expected-error{{dereferencing nullable pointer of type 'int * _Nullable'}}
+        *p = 42;  // expected-warning{{dereferencing nullable pointer of type 'int * _Nullable'}}
     } else {
         // p is known nonnull here
         *p = 42;  // OK
@@ -357,7 +357,7 @@ void test_deref_in_call(int* p) {
     if (p) {
         process_int(*p);  // OK - p is narrowed
     }
-    process_int(*p);  // expected-error{{dereferencing nullable pointer of type 'int * _Nullable'}}
+    process_int(*p);  // expected-warning{{dereferencing nullable pointer of type 'int * _Nullable'}}
 }
 
 // Test: Array subscript (which is dereference)
@@ -424,7 +424,7 @@ void test_nonnull_outer_ptr(int**! pp) {
 // Test: Early return doesn't narrow in unreachable code
 void test_early_return_unreachable(int* p) {
     if (!p) {
-        *p = 42;  // expected-error{{dereferencing nullable pointer of type 'int * _Nullable'}}
+        *p = 42;  // expected-warning{{dereferencing nullable pointer of type 'int * _Nullable'}}
                   // Error - p is known null before the return
         return;
     }
@@ -434,7 +434,7 @@ void test_early_return_unreachable(int* p) {
 // Test: AND pattern with OR - should not narrow
 void test_and_or_mixed(int* p, int cond) {
     if (p || cond) {
-        *p = 42;  // expected-error{{dereferencing nullable pointer of type 'int * _Nullable'}}
+        *p = 42;  // expected-warning{{dereferencing nullable pointer of type 'int * _Nullable'}}
                   // Error - p might not be checked if cond is true
     }
 }
@@ -443,7 +443,7 @@ void test_and_or_mixed(int* p, int cond) {
 void test_comparison_narrowing(int* p, int* q) {
     if (p == q && p) {
         *p = 42;  // OK - p is narrowed
-        *q = 42;  // expected-error{{dereferencing nullable pointer of type 'int * _Nullable'}}
+        *q = 42;  // expected-warning{{dereferencing nullable pointer of type 'int * _Nullable'}}
                   // Error - q is not necessarily nonnull (could both be null)
     }
 }
@@ -514,7 +514,7 @@ void test_impure_function_invalidates_narrowing(const char *zDate) {
     if (!is_digit_impure(*zDate)) {  // dereference in condition - narrows zDate to non-null
         return;
     }
-    char val = *zDate - '0';  // expected-error {{dereferencing nullable pointer}}
+    char val = *zDate - '0';  // expected-warning {{dereferencing nullable pointer}}
 }
 
 // Test: __attribute__((pure)) also preserves narrowing

@@ -14929,7 +14929,7 @@ static QualType CheckIndirectionOperand(Sema &S, Expr *Op, ExprValueKind &VK,
         // The dereference itself performs a null-check, so it's safe.
         // The narrowing analysis will collect these and narrow the pointer for the body.
         if (S.InConditionContext == 0) {
-          S.Diag(OpLoc, diag::err_nullable_dereference) << OpTy;
+          S.Diag(OpLoc, diag::warn_strict_nullability_dereference) << OpTy;
         }
       }
     }
