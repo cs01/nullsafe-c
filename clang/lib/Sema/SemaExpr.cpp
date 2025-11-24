@@ -14892,43 +14892,45 @@ static QualType CheckIndirectionOperand(Sema &S, Expr *Op, ExprValueKind &VK,
 
   // strict-nullability: Check for dereferencing nullable pointers, but allow it if the
   // pointer has been narrowed to non-null by flow-sensitive analysis.
-  QualType CheckType = OpTy;
+  if (S.getLangOpts().StrictNullability) {
+    QualType CheckType = OpTy;
 
-  // Check if this is a variable reference that might have been narrowed
-  if (const auto *DRE = dyn_cast<DeclRefExpr>(Op->IgnoreParenImpCasts())) {
-    if (const auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-      QualType NarrowedType = S.GetNarrowedType(VD);
-      if (!NarrowedType.isNull()) {
-        // Use the narrowed type for nullability checking
-        CheckType = NarrowedType;
+    // Check if this is a variable reference that might have been narrowed
+    if (const auto *DRE = dyn_cast<DeclRefExpr>(Op->IgnoreParenImpCasts())) {
+      if (const auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+        QualType NarrowedType = S.GetNarrowedType(VD);
+        if (!NarrowedType.isNull()) {
+          // Use the narrowed type for nullability checking
+          CheckType = NarrowedType;
+        }
       }
     }
-  }
-  // strict-nullability: Also check if this is an increment/decrement of a narrowed variable
-  // For *p++, Op is the UnaryOperator(++), and its sub-expression is the variable
-  else if (const auto *UO = dyn_cast<UnaryOperator>(Op->IgnoreParenImpCasts())) {
-    if (UO->getOpcode() == UO_PostInc || UO->getOpcode() == UO_PreInc ||
-        UO->getOpcode() == UO_PostDec || UO->getOpcode() == UO_PreDec) {
-      // Get the variable being incremented/decremented
-      if (const auto *DRE = dyn_cast<DeclRefExpr>(UO->getSubExpr()->IgnoreParenImpCasts())) {
-        if (const auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-          QualType NarrowedType = S.GetNarrowedType(VD);
-          if (!NarrowedType.isNull()) {
-            // The result of p++ is the old value of p, which had the narrowed type
-            CheckType = NarrowedType;
+    // strict-nullability: Also check if this is an increment/decrement of a narrowed variable
+    // For *p++, Op is the UnaryOperator(++), and its sub-expression is the variable
+    else if (const auto *UO = dyn_cast<UnaryOperator>(Op->IgnoreParenImpCasts())) {
+      if (UO->getOpcode() == UO_PostInc || UO->getOpcode() == UO_PreInc ||
+          UO->getOpcode() == UO_PostDec || UO->getOpcode() == UO_PreDec) {
+        // Get the variable being incremented/decremented
+        if (const auto *DRE = dyn_cast<DeclRefExpr>(UO->getSubExpr()->IgnoreParenImpCasts())) {
+          if (const auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+            QualType NarrowedType = S.GetNarrowedType(VD);
+            if (!NarrowedType.isNull()) {
+              // The result of p++ is the old value of p, which had the narrowed type
+              CheckType = NarrowedType;
+            }
           }
         }
       }
     }
-  }
 
-  if (auto Nullability = CheckType->getNullability()) {
-    if (*Nullability == NullabilityKind::Nullable) {
-      // strict-nullability: Allow nullable dereferences in condition contexts (if/while/for).
-      // The dereference itself performs a null-check, so it's safe.
-      // The narrowing analysis will collect these and narrow the pointer for the body.
-      if (S.InConditionContext == 0) {
-        S.Diag(OpLoc, diag::err_nullable_dereference) << OpTy;
+    if (auto Nullability = CheckType->getNullability()) {
+      if (*Nullability == NullabilityKind::Nullable) {
+        // strict-nullability: Allow nullable dereferences in condition contexts (if/while/for).
+        // The dereference itself performs a null-check, so it's safe.
+        // The narrowing analysis will collect these and narrow the pointer for the body.
+        if (S.InConditionContext == 0) {
+          S.Diag(OpLoc, diag::err_nullable_dereference) << OpTy;
+        }
       }
     }
   }

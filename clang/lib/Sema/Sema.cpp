@@ -691,7 +691,7 @@ void Sema::diagnoseNullableToNonnullConversion(QualType DstType,
 
   // strict-nullability: Check if the source expression refers to a variable that has been
   // narrowed to non-null by flow-sensitive analysis (e.g., after an `if (p)` check).
-  if (SrcExpr) {
+  if (getLangOpts().StrictNullability && SrcExpr) {
     if (const auto *DRE = dyn_cast<DeclRefExpr>(SrcExpr->IgnoreParenImpCasts())) {
       if (const auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
         QualType NarrowedType = GetNarrowedType(VD);
@@ -711,6 +711,8 @@ void Sema::diagnoseNullableToNonnullConversion(QualType DstType,
 // strict-nullability: Flow-sensitive nullability narrowing implementation.
 
 void Sema::PushNullabilityNarrowingScope() {
+  if (!getLangOpts().StrictNullability)
+    return;
   NullabilityNarrowingScopes.emplace_back();
 }
 
@@ -721,6 +723,8 @@ void Sema::PopNullabilityNarrowingScope() {
 }
 
 void Sema::NarrowVariableToNonNull(const VarDecl *VD) {
+  if (!getLangOpts().StrictNullability)
+    return;
   if (!VD || NullabilityNarrowingScopes.empty())
     return;
 
@@ -746,6 +750,8 @@ void Sema::NarrowVariableToNonNull(const VarDecl *VD) {
 }
 
 QualType Sema::GetNarrowedType(const VarDecl *VD) const {
+  if (!getLangOpts().StrictNullability)
+    return QualType();
   if (!VD)
     return QualType();
 
@@ -762,6 +768,8 @@ QualType Sema::GetNarrowedType(const VarDecl *VD) const {
 }
 
 const VarDecl* Sema::AnalyzeConditionForNullCheck(Expr *Cond, bool &IsNegated) {
+  if (!getLangOpts().StrictNullability)
+    return nullptr;
   if (!Cond)
     return nullptr;
 

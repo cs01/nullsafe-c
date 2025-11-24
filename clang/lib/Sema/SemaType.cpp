@@ -4458,14 +4458,16 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         // Default to _Nullable unless in an assumes-nonnull region.
         // We set inferNullabilityCS = false to make it explicit (not inferred),
         // which ensures diagnostics will catch nullable->nonnull conversions.
-        complainAboutInferringWithinChunk = wrappingKind;
-        if (inAssumeNonNullRegion) {
-          inferNullability = NullabilityKind::NonNull;
-        } else {
-          inferNullability = NullabilityKind::Nullable;
+        if (S.getLangOpts().StrictNullability) {
+          complainAboutInferringWithinChunk = wrappingKind;
+          if (inAssumeNonNullRegion) {
+            inferNullability = NullabilityKind::NonNull;
+          } else {
+            inferNullability = NullabilityKind::Nullable;
+          }
+          // strict-nullability: Force explicit nullability (not context-sensitive)
+          inferNullabilityCS = false;
         }
-        // strict-nullability: Force explicit nullability (not context-sensitive)
-        inferNullabilityCS = false;
         break;
 
       case PointerDeclaratorKind::CFErrorRefPointer:
