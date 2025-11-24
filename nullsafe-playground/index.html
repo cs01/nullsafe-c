@@ -437,8 +437,7 @@
         </button>
 
         <select id="examplesSelect" class="examples-select">
-            <option value="">Load Example...</option>
-            <option value="null-check">Null Check Example</option>
+            <option value="null-check" selected>Null Check Example</option>
             <option value="array">Array Safety</option>
             <option value="function">Function Parameters</option>
         </select>
@@ -573,17 +572,18 @@
             'null-check': `#include <stdio.h>
 #include <stdlib.h>
 
-// Null Check Example
-int main(void) {
-    // Declaring a nullable pointer
-    int * _Nullable ptr = NULL;
+// Pointers are nullable by default
+// The compiler tracks null checks!
 
-    // ERROR: Dereferencing potentially null pointer
+int main(void) {
+    int *ptr = NULL;
+
+    // WARNING: might be null!
     *ptr = 42;
 
-    // CORRECT: Check before dereferencing
+    // After null check, compiler knows it's safe
     if (ptr != NULL) {
-        *ptr = 42;  // OK
+        *ptr = 42;  // OK - compiler knows ptr is non-null here
     }
 
     return 0;
@@ -591,40 +591,54 @@ int main(void) {
             'array': `#include <stdio.h>
 #include <stdlib.h>
 
-// Array Safety Example
-int main(void) {
-    // Nullable array pointer
-    int * _Nullable arr = malloc(10 * sizeof(int));
+// malloc can return NULL if allocation fails
 
-    // ERROR: Using without null check
+int main(void) {
+    int *arr = malloc(10 * sizeof(int));
+
+    // WARNING: arr might be NULL
     arr[0] = 42;
 
-    // CORRECT: Check first
+    // SAFE: check before use
     if (arr != NULL) {
-        arr[0] = 42;  // OK
+        arr[0] = 42;
+        arr[1] = 100;
+        printf("arr[0] = %d\\n", arr[0]);
         free(arr);
+    } else {
+        printf("Allocation failed!\\n");
     }
 
     return 0;
 }`,
             'function': `#include <stdio.h>
 
-// Function with nullable parameter
-void process(int * _Nullable ptr) {
-    // ERROR: Unsafe dereference
-    int value = *ptr;
+// Parameters are nullable by default
+void process(int *data) {
+    // WARNING: data might be null
+    *data = 42;
+}
 
-    // CORRECT: Check first
-    if (ptr != NULL) {
-        int value = *ptr;  // OK
-        printf("Value: %d\\n", value);
+// Safe version with null check
+void process_safe(int *data) {
+    if (data != NULL) {
+        *data = 42;  // OK - compiler knows data is non-null
     }
+}
+
+// Explicitly non-null parameter
+void guaranteed(int * _Nonnull data) {
+    *data = 42;  // Always safe - caller must pass non-null
 }
 
 int main(void) {
     int x = 42;
-    process(&x);
-    process(NULL);
+    int *ptr = &x;
+
+    process(ptr);      // Works but ptr might be null
+    process_safe(ptr); // Safe - checks for null
+    guaranteed(ptr);   // OK - ptr is non-null here
+
     return 0;
 }`
         };
@@ -678,7 +692,7 @@ int main(void) {
                 editor.value = examples[example];
                 updateHighlight(); // Update highlighting
                 showToast('Example loaded!');
-                e.target.value = '';
+                // Don't reset - keep the selection showing
             }
         });
 
@@ -699,6 +713,10 @@ int main(void) {
             showToast('Output cleared');
         });
 
+        let capturedStdout = '';
+        let capturedStderr = '';
+        let captureOutput = false;
+
         async function initCompiler() {
             status.textContent = 'Loading compiler (64MB)...';
             status.className = 'status';
@@ -708,17 +726,41 @@ int main(void) {
                 // Configure Module before loading clang.js
                 window.Module = {
                     print: function(text) {
-                        console.log('[stdout]', text);
+                        if (captureOutput) {
+                            capturedStdout += text + '\n';
+                            console.log('[captured stdout]', text);
+                        } else {
+                            console.log('[stdout]', text);
+                        }
                     },
                     printErr: function(text) {
-                        console.log('[stderr]', text);
+                        if (captureOutput) {
+                            capturedStderr += text + '\n';
+                            console.log('[captured stderr]', text);
+                        } else {
+                            console.log('[stderr]', text);
+                        }
                     },
                     noInitialRun: true,
+                    noExitRuntime: true,  // Keep runtime alive
+                    // Set up command line arguments
+                    arguments: [],
                     onRuntimeInitialized: function() {
                         ClangModule = window.Module;
                         console.log('Runtime initialized!');
                         console.log('Module has FS:', !!window.Module.FS);
-                        console.log('All Module keys:', Object.keys(window.Module));
+                        console.log('Module has callMain:', !!window.Module.callMain);
+
+                        // Check all properties for main/call-related and exported functions
+                        const mainFuncs = Object.keys(window.Module).filter(k =>
+                            k.toLowerCase().includes('main') || k.toLowerCase().includes('call') || k.startsWith('_')
+                        );
+                        console.log('Main/call/exported functions:', mainFuncs);
+
+                        // Check wasmExports
+                        if (window.Module.asm) {
+                            console.log('Module.asm keys:', Object.keys(window.Module.asm).slice(0, 50));
+                        }
 
                         status.textContent = 'Ready to compile';
                         status.className = 'status ready';
@@ -726,6 +768,9 @@ int main(void) {
                         loadingBar.classList.remove('active');
                         showToast('Compiler loaded successfully!');
                         console.log('Clang WASM module loaded successfully');
+
+                        // Auto-compile the initial example
+                        setTimeout(() => compile(), 500);
                     }
                 };
 
@@ -813,57 +858,74 @@ int main(void) {
         async function compileCode(code) {
             return new Promise((resolve, reject) => {
                 try {
-                    console.log('Starting compilation, Module available:', !!window.Module);
-                    console.log('Module.FS available:', !!window.Module?.FS);
-                    console.log('Global FS available:', !!window.FS);
-                    console.log('Module keys:', window.Module ? Object.keys(window.Module).slice(0, 30) : 'none');
+                    const inputFile = 'input.c';  // Try relative path
 
-                    const inputFile = '/input.c';
-
-                    // Try to find FS - it might be global or on Module
+                    // Get FS
                     const FS = window.Module?.FS || window.FS;
-
                     if (!FS) {
-                        throw new Error('FS is not available - Module.FS: ' + !!window.Module?.FS + ', window.FS: ' + !!window.FS);
+                        throw new Error('FS is not available');
                     }
 
+                    // Write the file
                     FS.writeFile(inputFile, code);
 
-                    let stdout = '';
-                    let stderr = '';
-
-                    const oldPrint = Module.print;
-                    const oldPrintErr = Module.printErr;
-
-                    Module.print = (text) => {
-                        stdout += text + '\n';
-                    };
-                    Module.printErr = (text) => {
-                        stderr += text + '\n';
-                    };
-
+                    // Verify file exists
                     try {
-                        Module.callMain([
-                            '-fsyntax-only',
-                            '-Xclang', '-verify',
-                            inputFile
-                        ]);
+                        const fileContent = FS.readFile(inputFile, { encoding: 'utf8' });
+                        console.log('File written successfully, size:', fileContent.length);
+                        console.log('File content preview:', fileContent.substring(0, 100));
                     } catch (e) {
-                        // Clang may throw on errors, that's okay
-                        console.log('Clang execution completed (may have thrown):', e);
+                        console.error('Cannot read back file:', e);
                     }
 
-                    Module.print = oldPrint;
-                    Module.printErr = oldPrintErr;
+                    // List files in root
+                    try {
+                        const files = FS.readdir('/');
+                        console.log('Files in root:', files);
+                    } catch (e) {
+                        console.error('Cannot list files:', e);
+                    }
+
+                    // Reset and enable capture
+                    capturedStdout = '';
+                    capturedStderr = '';
+                    captureOutput = true;
+
+                    try {
+                        // Emscripten doesn't pass Module.arguments to an already-running main
+                        // We need to set up ENV and call differently
+                        const oldArgs = Module.arguments;
+
+                        // Try setting arguments before calling _main
+                        Module['arguments'] = ['-fsyntax-only', 'input.c'];
+
+                        console.log('Calling clang with Module.arguments:', Module.arguments);
+
+                        // Try calling with argc/argv = 0, Emscripten should use Module.arguments
+                        // But it seems like it doesn't work for subsequent calls
+                        // Let's try passing actual argc
+                        const argc = 2;  // Program name + our args
+                        const exitCode = Module._main(argc, 0);
+                        console.log('Clang exit code:', exitCode);
+
+                        Module.arguments = oldArgs;
+                    } catch (e) {
+                        console.log('Clang execution error:', e);
+                    }
+
+                    // Disable capture
+                    captureOutput = false;
 
                     try {
                         FS.unlink(inputFile);
                     } catch (e) {
-                        // File might not exist
+                        // Ignore
                     }
 
-                    resolve({ stdout, stderr });
+                    console.log('Compilation result:', { stdout: capturedStdout, stderr: capturedStderr });
+                    resolve({ stdout: capturedStdout, stderr: capturedStderr });
                 } catch (error) {
+                    captureOutput = false;
                     console.error('compileCode error:', error);
                     reject(error);
                 }
