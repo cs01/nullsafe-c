@@ -496,3 +496,33 @@ void test_if_deref_condition(const char *str) {
         // then branch
     }
 }
+
+// Test: narrowing preserved after pure function call
+int is_digit_pure(char c) __attribute__((const));
+
+void test_pure_function_preserves_narrowing(const char *zDate) {
+    if (!is_digit_pure(*zDate)) {  // dereference in condition - narrows zDate to non-null
+        return;
+    }
+    char val = *zDate - '0';  // Should be OK - zDate still non-null after pure function call
+}
+
+// Test: narrowing invalidated after impure function call
+int is_digit_impure(char c);
+
+void test_impure_function_invalidates_narrowing(const char *zDate) {
+    if (!is_digit_impure(*zDate)) {  // dereference in condition - narrows zDate to non-null
+        return;
+    }
+    char val = *zDate - '0';  // expected-error {{dereferencing nullable pointer}}
+}
+
+// Test: __attribute__((pure)) also preserves narrowing
+int is_also_pure(char c) __attribute__((pure));
+
+void test_pure_attr_preserves_narrowing(const char *zDate) {
+    if (!is_also_pure(*zDate)) {  // dereference in condition - narrows zDate to non-null
+        return;
+    }
+    char val = *zDate - '0';  // Should be OK - zDate still non-null after pure function call
+}

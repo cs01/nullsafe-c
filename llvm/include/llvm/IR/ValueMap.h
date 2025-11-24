@@ -258,9 +258,11 @@ public:
     // Make a copy that won't get changed even when *this is destroyed.
     ValueMapCallbackVH Copy(*this);
     typename Config::mutex_type *M = Config::getMutex(Copy.Map->Data);
+#ifndef BINJI_HACK
     std::unique_lock<typename Config::mutex_type> Guard;
     if (M)
       Guard = std::unique_lock<typename Config::mutex_type>(*M);
+#endif
     Config::onDelete(Copy.Map->Data, Copy.Unwrap()); // May destroy *this.
     Copy.Map->Map.erase(Copy); // Definitely destroys *this.
   }
@@ -271,9 +273,11 @@ public:
     // Make a copy that won't get changed even when *this is destroyed.
     ValueMapCallbackVH Copy(*this);
     typename Config::mutex_type *M = Config::getMutex(Copy.Map->Data);
+#ifndef BINJI_HACK
     std::unique_lock<typename Config::mutex_type> Guard;
     if (M)
       Guard = std::unique_lock<typename Config::mutex_type>(*M);
+#endif
 
     KeyT typed_new_key = cast<KeySansPointerT>(new_key);
     // Can destroy *this:

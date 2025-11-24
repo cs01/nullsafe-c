@@ -1564,6 +1564,16 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
       Actions.NarrowVariableToNonNull(CheckedVar);
     }
 
+    // Handle dereferences in condition: if (*p == 'x')
+    // Only narrow from dereferences if the condition doesn't contain impure function calls
+    if (!ConditionHasCalls) {
+      SmallVector<const VarDecl*, 4> DereferencedVars;
+      Actions.CollectDereferencedVariables(Cond.get().second, DereferencedVars);
+      for (const VarDecl *VD : DereferencedVars) {
+        Actions.NarrowVariableToNonNull(VD);
+      }
+    }
+
     EnterExpressionEvaluationContext PotentiallyDiscarded(
         Actions, Context, nullptr,
         Sema::ExpressionEvaluationContextRecord::EK_Other, ShouldEnter);
@@ -1588,6 +1598,18 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
       // Apply inverted narrowing: NULL check + early return = nonnull after
       if (!CheckedVars.empty()) {
         for (const VarDecl *VD : CheckedVars) {
+          Actions.NarrowVariableToNonNull(VD);
+        }
+      }
+
+      // Also handle dereferences in condition with early return
+      // Pattern: if (!is_digit(*p)) { return; }
+      // After the if, we know is_digit(*p) was true, so p is non-null
+      // Only do this if the condition doesn't contain impure function calls
+      if (!ConditionHasCalls) {
+        SmallVector<const VarDecl*, 4> DereferencedVars;
+        Actions.CollectDereferencedVariables(Cond.get().second, DereferencedVars);
+        for (const VarDecl *VD : DereferencedVars) {
           Actions.NarrowVariableToNonNull(VD);
         }
       }
