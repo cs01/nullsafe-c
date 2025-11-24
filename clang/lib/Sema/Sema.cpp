@@ -689,7 +689,7 @@ void Sema::diagnoseNullableToNonnullConversion(QualType DstType,
   if (!TypeNullability || *TypeNullability != NullabilityKind::NonNull)
     return;
 
-  // cbang: Check if the source expression refers to a variable that has been
+  // strict-nullability: Check if the source expression refers to a variable that has been
   // narrowed to non-null by flow-sensitive analysis (e.g., after an `if (p)` check).
   if (SrcExpr) {
     if (const auto *DRE = dyn_cast<DeclRefExpr>(SrcExpr->IgnoreParenImpCasts())) {
@@ -703,12 +703,12 @@ void Sema::diagnoseNullableToNonnullConversion(QualType DstType,
     }
   }
 
-  // cbang: Always error when converting nullable to non-nullable.
+  // strict-nullability: Always error when converting nullable to non-nullable.
   // This makes nullable→nonnull conversions hard errors for strict null safety.
   Diag(Loc, diag::err_nullability_lost) << SrcType << DstType;
 }
 
-// cbang: Flow-sensitive nullability narrowing implementation.
+// strict-nullability: Flow-sensitive nullability narrowing implementation.
 
 void Sema::PushNullabilityNarrowingScope() {
   NullabilityNarrowingScopes.emplace_back();
@@ -831,7 +831,7 @@ const VarDecl* Sema::AnalyzeConditionForNullCheck(Expr *Cond, bool &IsNegated) {
   return nullptr;
 }
 
-// cbang: Collect all null-checked variables from a condition (handles OR expressions)
+// strict-nullability: Collect all null-checked variables from a condition (handles OR expressions)
 void Sema::CollectNullCheckedVariables(Expr *Cond, bool ParentIsNegated,
                                        SmallVectorImpl<const VarDecl*> &Vars) {
   if (!Cond)
@@ -862,7 +862,7 @@ void Sema::CollectNullCheckedVariables(Expr *Cond, bool ParentIsNegated,
   }
 }
 
-// cbang: Collect all non-null checked variables from an AND expression.
+// strict-nullability: Collect all non-null checked variables from an AND expression.
 // For "p && q", collect both p and q.
 void Sema::CollectAndCheckedVariables(Expr *Cond,
                                       SmallVectorImpl<const VarDecl*> &Vars) {
@@ -891,7 +891,7 @@ void Sema::CollectAndCheckedVariables(Expr *Cond,
   }
 }
 
-// cbang: Check if an expression contains any function calls that could have side effects
+// strict-nullability: Check if an expression contains any function calls that could have side effects
 // This is used to determine if it's safe to apply narrowing from a condition
 static bool ContainsSideEffectingCall(Expr *E) {
   if (!E)
@@ -936,7 +936,7 @@ bool Sema::ConditionContainsFunctionCalls(Expr *Cond) {
   return ContainsSideEffectingCall(Cond);
 }
 
-// cbang: Collect all variables that are dereferenced in an expression.
+// strict-nullability: Collect all variables that are dereferenced in an expression.
 // This recursively walks the AST to find UnaryOperator nodes with UO_Deref.
 void Sema::CollectDereferencedVariables(Expr *E,
                                         SmallVectorImpl<const VarDecl*> &Vars) {
@@ -980,7 +980,7 @@ void Sema::CollectDereferencedVariables(Expr *E,
   }
 }
 
-// cbang: Check if a statement always terminates (for early-return narrowing).
+// strict-nullability: Check if a statement always terminates (for early-return narrowing).
 bool Sema::StatementAlwaysTerminates(Stmt *S) {
   if (!S)
     return false;
@@ -1003,7 +1003,7 @@ bool Sema::StatementAlwaysTerminates(Stmt *S) {
   return false;
 }
 
-// cbang: Handle narrowing from assert() and __builtin_assume()
+// strict-nullability: Handle narrowing from assert() and __builtin_assume()
 void Sema::HandleAssertNarrowing(FunctionDecl *FDecl, CallExpr *TheCall) {
   if (!FDecl || NullabilityNarrowingScopes.empty())
     return;
@@ -1043,7 +1043,7 @@ void Sema::HandleAssertNarrowing(FunctionDecl *FDecl, CallExpr *TheCall) {
   }
 }
 
-// cbang: Invalidate all narrowing in the current scope
+// strict-nullability: Invalidate all narrowing in the current scope
 void Sema::InvalidateNarrowingInCurrentScope() {
   if (NullabilityNarrowingScopes.empty())
     return;
@@ -1155,7 +1155,7 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
          "can't cast prvalue to glvalue");
 #endif
 
-  // cbang: Pass the expression to diagnoseNullableToNonnullConversion so it
+  // strict-nullability: Pass the expression to diagnoseNullableToNonnullConversion so it
   // can check if the variable has been narrowed to non-null by flow analysis.
   diagnoseNullableToNonnullConversion(Ty, E->getType(), E->getBeginLoc(), E);
   diagnoseZeroToNullptrConversion(Kind, E);

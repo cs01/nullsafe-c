@@ -4454,7 +4454,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         break;
 
       case PointerDeclaratorKind::SingleLevelPointer:
-        // cbang: Always add explicit nullability for single-level pointers.
+        // strict-nullability: Always add explicit nullability for single-level pointers.
         // Default to _Nullable unless in an assumes-nonnull region.
         // We set inferNullabilityCS = false to make it explicit (not inferred),
         // which ensures diagnostics will catch nullable->nonnull conversions.
@@ -4464,7 +4464,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         } else {
           inferNullability = NullabilityKind::Nullable;
         }
-        // cbang: Force explicit nullability (not context-sensitive)
+        // strict-nullability: Force explicit nullability (not context-sensitive)
         inferNullabilityCS = false;
         break;
 
@@ -4524,7 +4524,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
     case DeclaratorContext::FunctionalCast:
     case DeclaratorContext::RequiresExpr:
     case DeclaratorContext::Association: {
-      // cbang: Add nullability inference for local variables and other contexts
+      // strict-nullability: Add nullability inference for local variables and other contexts
       complainAboutMissingNullability = CAMN_Yes;
 
       auto wrappingKind = PointerWrappingDeclaratorKind::None;
@@ -4534,7 +4534,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         break;
 
       case PointerDeclaratorKind::SingleLevelPointer:
-        // cbang: Always add explicit nullability for single-level pointers.
+        // strict-nullability: Always add explicit nullability for single-level pointers.
         complainAboutInferringWithinChunk = wrappingKind;
         if (inAssumeNonNullRegion) {
           inferNullability = NullabilityKind::NonNull;

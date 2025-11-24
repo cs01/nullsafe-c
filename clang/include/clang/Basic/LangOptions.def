@@ -123,7 +123,7 @@ LANGOPT(PointerAuthAuthTraps, 1, 0, NotCompatible, "pointer authentication failu
 LANGOPT(PointerAuthVTPtrAddressDiscrimination, 1, 0, NotCompatible, "incorporate address discrimination in authenticated vtable pointers")
 LANGOPT(PointerAuthVTPtrTypeDiscrimination, 1, 0, NotCompatible, "incorporate type discrimination in authenticated vtable pointers")
 
-// cbang: Treat inferred nullability like explicit for warnings
+// strict-nullability: Treat inferred nullability like explicit for warnings
 LANGOPT(StrictNullabilityInference, 1, 0, NotCompatible, "treat inferred nullability as explicit for diagnostics")
 LANGOPT(PointerAuthTypeInfoVTPtrDiscrimination, 1, 0, NotCompatible, "incorporate type and address discrimination in authenticated vtable pointers for std::type_info")
 LANGOPT(PointerAuthFunctionTypeDiscrimination, 1, 0, Benign,

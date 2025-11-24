@@ -1174,67 +1174,67 @@ public:
                                            SourceLocation Loc,
                                            Expr *SrcExpr = nullptr);
 
-  /// cbang: Flow-sensitive nullability narrowing support.
+  /// strict-nullability: Flow-sensitive nullability narrowing support.
   /// Push a new narrowing scope (e.g., entering an if statement).
   void PushNullabilityNarrowingScope();
 
-  /// cbang: Pop a narrowing scope (e.g., leaving an if statement).
+  /// strict-nullability: Pop a narrowing scope (e.g., leaving an if statement).
   void PopNullabilityNarrowingScope();
 
-  /// cbang: Narrow a variable's type to non-null in the current scope.
+  /// strict-nullability: Narrow a variable's type to non-null in the current scope.
   void NarrowVariableToNonNull(const VarDecl *VD);
 
-  /// cbang: Get the narrowed type for a variable, if any.
+  /// strict-nullability: Get the narrowed type for a variable, if any.
   /// Returns the narrowed type if the variable has been narrowed in the
   /// current scope, otherwise returns an empty QualType.
   QualType GetNarrowedType(const VarDecl *VD) const;
 
-  /// cbang: Analyze a condition expression for null checks and set up
+  /// strict-nullability: Analyze a condition expression for null checks and set up
   /// narrowing for the then/else branches.
   /// Returns the variable being checked, or nullptr if not a simple null check.
   const VarDecl* AnalyzeConditionForNullCheck(Expr *Cond, bool &IsNegated);
 
-  /// cbang: Collect all variables that are null-checked in an OR expression.
+  /// strict-nullability: Collect all variables that are null-checked in an OR expression.
   /// For example, "if (!p || !q) return;" should collect both p and q.
   /// All variables must have the same negation (all negated or all non-negated).
   void CollectNullCheckedVariables(Expr *Cond, bool IsNegated,
                                    SmallVectorImpl<const VarDecl*> &Vars);
 
-  /// cbang: Collect all variables that are non-null checked in an AND expression.
+  /// strict-nullability: Collect all variables that are non-null checked in an AND expression.
   /// For example, "p && q" should collect both p and q.
   /// This is used for AND-expression narrowing.
   void CollectAndCheckedVariables(Expr *Cond,
                                   SmallVectorImpl<const VarDecl*> &Vars);
 
-  /// cbang: Check if a condition expression contains any function calls.
+  /// strict-nullability: Check if a condition expression contains any function calls.
   /// This is used to determine if it's safe to apply narrowing from a condition,
   /// since function calls can invalidate pointers before we apply narrowing.
   bool ConditionContainsFunctionCalls(Expr *Cond);
 
-  /// cbang: Collect all variables that are dereferenced in an expression.
+  /// strict-nullability: Collect all variables that are dereferenced in an expression.
   /// For example, "tolower(*p) == tolower(*q)" should collect both p and q.
   /// This is used for loop condition narrowing.
   void CollectDereferencedVariables(Expr *E,
                                     SmallVectorImpl<const VarDecl*> &Vars);
 
-  /// cbang: Handle narrowing from assert() and __builtin_assume() calls.
+  /// strict-nullability: Handle narrowing from assert() and __builtin_assume() calls.
   /// If the function is assert or __builtin_assume, analyze the condition
   /// and narrow variables accordingly.
   void HandleAssertNarrowing(FunctionDecl *FDecl, CallExpr *TheCall);
 
-  /// cbang: Invalidate narrowing for a specific variable.
+  /// strict-nullability: Invalidate narrowing for a specific variable.
   /// This is used when a variable is modified (e.g., by ++ or --).
   void InvalidateNarrowingForVariable(const VarDecl *VD);
 
-  /// cbang: Invalidate all narrowing in the current scope.
+  /// strict-nullability: Invalidate all narrowing in the current scope.
   /// This is called after function calls to be conservative about side effects.
   void InvalidateNarrowingInCurrentScope();
 
-  /// cbang: Check if a statement always terminates (return/break/continue/throw).
+  /// strict-nullability: Check if a statement always terminates (return/break/continue/throw).
   /// This is used for early-return narrowing.
   bool StatementAlwaysTerminates(Stmt *S);
 
-  /// cbang: Record that a variable was checked for null in an AND expression.
+  /// strict-nullability: Record that a variable was checked for null in an AND expression.
   /// Parser calls this when it sees patterns like "p && expr".
   void RecordAndExprNullCheck(const VarDecl *VD) {
     if (VD) AndExprCheckedVars.push_back(VD);
@@ -1298,18 +1298,18 @@ public:
 
   llvm::BumpPtrAllocator BumpAlloc;
 
-  /// cbang: Flow-sensitive nullability narrowing.
+  /// strict-nullability: Flow-sensitive nullability narrowing.
   /// Maps variables to their narrowed (non-null) types within scopes.
   /// This is a stack of maps to support nested scopes.
   llvm::SmallVector<llvm::DenseMap<const VarDecl*, QualType>, 4> NullabilityNarrowingScopes;
 
-  /// cbang: Track variables checked for null in AND expressions during condition parsing.
+  /// strict-nullability: Track variables checked for null in AND expressions during condition parsing.
   /// Parser populates this as it encounters "p && expr" patterns, and ParseIfStatement
   /// consumes it to know which variables to narrow. This avoids pushing narrowing scopes
   /// during expression parsing which can corrupt parser state.
   llvm::SmallVector<const VarDecl*, 8> AndExprCheckedVars;
 
-  /// cbang: Track when we're type-checking a condition expression (if/while/for).
+  /// strict-nullability: Track when we're type-checking a condition expression (if/while/for).
   /// When true, dereferences of nullable pointers are allowed because they'll be
   /// used for narrowing. Incremented when entering condition, decremented when leaving.
   unsigned InConditionContext = 0;

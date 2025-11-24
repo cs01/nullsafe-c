@@ -7105,10 +7105,10 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
 
     checkFortifiedBuiltinMemoryFunction(FDecl, TheCall);
 
-    // cbang: Handle assert() and __builtin_assume() narrowing
+    // strict-nullability: Handle assert() and __builtin_assume() narrowing
     HandleAssertNarrowing(FDecl, TheCall);
 
-    // cbang: Invalidate narrowing after function calls (conservative approach)
+    // strict-nullability: Invalidate narrowing after function calls (conservative approach)
     // Skip invalidation for:
     // 1. assert() and __builtin_assume() - side-effect free and provide guarantees
     // 2. Pure/const functions - don't modify global state
@@ -7141,13 +7141,13 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
   } else if (NDecl) {
     if (CheckPointerCall(NDecl, TheCall, Proto))
       return ExprError();
-    // cbang: Invalidate narrowing for other named decl calls
+    // strict-nullability: Invalidate narrowing for other named decl calls
     InvalidateNarrowingInCurrentScope();
     AndExprCheckedVars.clear();
   } else {
     if (CheckOtherCall(TheCall, Proto))
       return ExprError();
-    // cbang: Invalidate narrowing for other calls (function pointers, etc.)
+    // strict-nullability: Invalidate narrowing for other calls (function pointers, etc.)
     InvalidateNarrowingInCurrentScope();
     AndExprCheckedVars.clear();
   }
@@ -14431,7 +14431,7 @@ static QualType CheckIncrementDecrementOperand(Sema &S, Expr *Op,
   if (CheckForModifiableLvalue(Op, OpLoc, S))
     return QualType();
 
-  // cbang: Note on narrowing for ++/--:
+  // strict-nullability: Note on narrowing for ++/--:
   // We treat p++ and ++p similar to p + 1 for narrowing purposes.
   // If p is narrowed to nonnull, then p++ should also be nonnull (it's the same
   // pointer, just incremented). Our pointer arithmetic narrowing handles this.
@@ -14890,7 +14890,7 @@ static QualType CheckIndirectionOperand(Sema &S, Expr *Op, ExprValueKind &VK,
           << OpTy << Op->getSourceRange();
   }
 
-  // cbang: Check for dereferencing nullable pointers, but allow it if the
+  // strict-nullability: Check for dereferencing nullable pointers, but allow it if the
   // pointer has been narrowed to non-null by flow-sensitive analysis.
   QualType CheckType = OpTy;
 
@@ -14904,7 +14904,7 @@ static QualType CheckIndirectionOperand(Sema &S, Expr *Op, ExprValueKind &VK,
       }
     }
   }
-  // cbang: Also check if this is an increment/decrement of a narrowed variable
+  // strict-nullability: Also check if this is an increment/decrement of a narrowed variable
   // For *p++, Op is the UnaryOperator(++), and its sub-expression is the variable
   else if (const auto *UO = dyn_cast<UnaryOperator>(Op->IgnoreParenImpCasts())) {
     if (UO->getOpcode() == UO_PostInc || UO->getOpcode() == UO_PreInc ||
@@ -14924,7 +14924,7 @@ static QualType CheckIndirectionOperand(Sema &S, Expr *Op, ExprValueKind &VK,
 
   if (auto Nullability = CheckType->getNullability()) {
     if (*Nullability == NullabilityKind::Nullable) {
-      // cbang: Allow nullable dereferences in condition contexts (if/while/for).
+      // strict-nullability: Allow nullable dereferences in condition contexts (if/while/for).
       // The dereference itself performs a null-check, so it's safe.
       // The narrowing analysis will collect these and narrow the pointer for the body.
       if (S.InConditionContext == 0) {

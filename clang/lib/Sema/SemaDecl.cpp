@@ -13973,7 +13973,7 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
 
     Init = Result.getAs<Expr>();
 
-    // cbang: Check for null initialization of nonnull pointers
+    // strict-nullability: Check for null initialization of nonnull pointers
     if (VDecl && Init) {
       // Check if initializing a nonnull pointer with a null constant
       QualType VDeclType = VDecl->getType();
@@ -13987,7 +13987,7 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
         }
       }
 
-      // cbang: Pointer arithmetic narrowing - if initializing with pointer arithmetic
+      // strict-nullability: Pointer arithmetic narrowing - if initializing with pointer arithmetic
       // on a narrowed variable, narrow the new variable too (q = p + 1)
       if (const auto *BinOp = dyn_cast<BinaryOperator>(Init->IgnoreParenImpCasts())) {
         // Check for pointer + integer or integer + pointer

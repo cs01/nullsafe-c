@@ -441,7 +441,7 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
     PreferredType.enterBinary(Actions, Tok.getLocation(), LHS.get(),
                               OpToken.getKind());
 
-    // cbang: For AND expressions (&&), narrow the LHS variable(s) before parsing RHS.
+    // strict-nullability: For AND expressions (&&), narrow the LHS variable(s) before parsing RHS.
     // This allows patterns like "if (p && *p == 'x')" to work without errors.
     // We also record them so ParseIfStatement knows to consolidate scopes.
     if (OpToken.is(tok::ampamp) && !LHS.isInvalid()) {

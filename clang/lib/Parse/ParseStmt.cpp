@@ -1112,7 +1112,7 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
 
   Sema::CompoundScopeRAII CompoundScope(Actions, isStmtExpr);
 
-  // cbang: Push narrowing scope for the compound statement
+  // strict-nullability: Push narrowing scope for the compound statement
   Actions.PushNullabilityNarrowingScope();
 
   // Parse any pragmas at the beginning of the compound statement.
@@ -1219,7 +1219,7 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
   // incorrect. Then the whole compound statement should also be marked as
   // invalid to prevent subsequent errors.
   if (isStmtExpr && LastIsError && !Stmts.empty()) {
-    // cbang: Pop narrowing scope before early return
+    // strict-nullability: Pop narrowing scope before early return
     Actions.PopNullabilityNarrowingScope();
     return StmtError();
   }
@@ -1251,7 +1251,7 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
   if (T.getCloseLocation().isValid())
     CloseLoc = T.getCloseLocation();
 
-  // cbang: Pop narrowing scope for the compound statement
+  // strict-nullability: Pop narrowing scope for the compound statement
   Actions.PopNullabilityNarrowingScope();
 
   return Actions.ActOnCompoundStmt(T.getOpenLocation(), CloseLoc,
@@ -1477,7 +1477,7 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
 
   if (!IsConsteval) {
 
-    // cbang: Mark that we're parsing a condition to allow nullable dereferences
+    // strict-nullability: Mark that we're parsing a condition to allow nullable dereferences
     ++Actions.InConditionContext;
     if (ParseParenExprOrCondition(&InitStmt, Cond, IfLoc,
                                   IsConstexpr ? Sema::ConditionKind::ConstexprIf
@@ -1517,7 +1517,7 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
   // Read the 'then' stmt.
   SourceLocation ThenStmtLoc = Tok.getLocation();
 
-  // cbang: Analyze condition for null checks and set up narrowing
+  // strict-nullability: Analyze condition for null checks and set up narrowing
   bool IsNegatedCheck = false;
   const VarDecl *CheckedVar = nullptr;
   bool ConditionHasCalls = false;
@@ -1545,7 +1545,7 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
       ShouldEnter = true;
     }
 
-    // cbang: Push narrowing scope for then-branch and apply narrowing.
+    // strict-nullability: Push narrowing scope for then-branch and apply narrowing.
     // We narrow variables from two sources:
     // 1. AND-expression checks: variables recorded during "p && expr" parsing
     // 2. Traditional null checks: the main condition variable (if present)
@@ -1579,11 +1579,11 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
         Sema::ExpressionEvaluationContextRecord::EK_Other, ShouldEnter);
     ThenStmt = ParseStatement(&InnerStatementTrailingElseLoc);
 
-    // cbang: Pop narrowing scope after then-branch
+    // strict-nullability: Pop narrowing scope after then-branch
     Actions.PopNullabilityNarrowingScope();
   }
 
-  // cbang: Early-return narrowing
+  // strict-nullability: Early-return narrowing
   // If the then-statement terminates, check if the condition tests for null.
   // Pattern: if (p == NULL || q == NULL) { return; }
   // After the if-statement, all checked variables are non-null.
@@ -1655,7 +1655,7 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
       ShouldEnter = true;
     }
 
-    // cbang: Push narrowing scope for else-branch
+    // strict-nullability: Push narrowing scope for else-branch
     Actions.PushNullabilityNarrowingScope();
 
     // Narrow in else-branch for negated conditions
@@ -1669,7 +1669,7 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
         Sema::ExpressionEvaluationContextRecord::EK_Other, ShouldEnter);
     ElseStmt = ParseStatement();
 
-    // cbang: Pop narrowing scope after else-branch
+    // strict-nullability: Pop narrowing scope after else-branch
     Actions.PopNullabilityNarrowingScope();
 
     if (ElseStmt.isUsable())
@@ -1856,7 +1856,7 @@ StmtResult Parser::ParseWhileStatement(SourceLocation *TrailingElseLoc,
   Sema::ConditionResult Cond;
   SourceLocation LParen;
   SourceLocation RParen;
-  // cbang: Mark that we're parsing a condition to allow nullable dereferences
+  // strict-nullability: Mark that we're parsing a condition to allow nullable dereferences
   ++Actions.InConditionContext;
   if (ParseParenExprOrCondition(nullptr, Cond, WhileLoc,
                                 Sema::ConditionKind::Boolean, LParen, RParen))
@@ -1884,7 +1884,7 @@ StmtResult Parser::ParseWhileStatement(SourceLocation *TrailingElseLoc,
 
   MisleadingIndentationChecker MIChecker(*this, MSK_while, WhileLoc);
 
-  // cbang: Loop condition narrowing
+  // strict-nullability: Loop condition narrowing
   // If the condition checks/dereferences pointers, they must be non-null inside the loop
   Actions.PushNullabilityNarrowingScope();
   if (!Cond.isInvalid() && Cond.get().second) {
@@ -1913,7 +1913,7 @@ StmtResult Parser::ParseWhileStatement(SourceLocation *TrailingElseLoc,
   // Read the body statement.
   StmtResult Body(ParseStatement(TrailingElseLoc));
 
-  // cbang: Pop narrowing scope after loop body
+  // strict-nullability: Pop narrowing scope after loop body
   Actions.PopNullabilityNarrowingScope();
 
   if (Body.isUsable())
@@ -2280,7 +2280,7 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc,
         // We permit 'continue' and 'break' in the condition of a for loop.
         getCurScope()->AddFlags(Scope::BreakScope | Scope::ContinueScope);
 
-        // cbang: Mark that we're parsing a condition to allow nullable dereferences
+        // strict-nullability: Mark that we're parsing a condition to allow nullable dereferences
         ++Actions.InConditionContext;
         ExprResult SecondExpr = ParseExpression();
         --Actions.InConditionContext;
@@ -2392,7 +2392,7 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc,
 
   MisleadingIndentationChecker MIChecker(*this, MSK_for, ForLoc);
 
-  // cbang: Loop condition narrowing for for-loops
+  // strict-nullability: Loop condition narrowing for for-loops
   Actions.PushNullabilityNarrowingScope();
   if (!SecondPart.isInvalid() && SecondPart.get().second) {
     // Handle "for (; p; )" - analyze for null checks
@@ -2420,7 +2420,7 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc,
   // Read the body statement.
   StmtResult Body(ParseStatement(TrailingElseLoc));
 
-  // cbang: Pop narrowing scope after loop body
+  // strict-nullability: Pop narrowing scope after loop body
   Actions.PopNullabilityNarrowingScope();
 
   if (Body.isUsable())
