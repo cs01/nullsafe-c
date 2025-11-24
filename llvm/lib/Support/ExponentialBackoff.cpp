@@ -7,7 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/ExponentialBackoff.h"
+#ifndef BINJI_HACK
 #include <thread>
+#endif
 
 using namespace llvm;
 
@@ -24,6 +26,8 @@ bool ExponentialBackoff::waitForNextAttempt() {
   duration WaitDuration = std::min(duration(Dist(RandDev)), EndTime - Now);
   if (CurMaxWait < MaxWait)
     CurrentMultiplier *= 2;
+#ifndef BINJI_HACK
   std::this_thread::sleep_for(WaitDuration);
+#endif
   return true;
 }

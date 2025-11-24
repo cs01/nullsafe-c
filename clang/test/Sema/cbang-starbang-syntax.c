@@ -447,3 +447,30 @@ void test_comparison_narrowing(int* p, int* q) {
                   // Error - q is not necessarily nonnull (could both be null)
     }
 }
+
+// Test: const pointer narrowing (cJSON pattern)
+void test_const_pointer_narrowing(const unsigned char* input_pointer) {
+    if (input_pointer) {
+        *input_pointer;  // OK - narrowed to nonnull even though const  // expected-warning{{expression result unused}}
+    }
+}
+
+// Test: narrowing inside while loop (cJSON pattern)
+void test_while_narrowing(const unsigned char* input_pointer, const unsigned char* input_end) {
+    while (input_pointer < input_end) {
+        if (input_pointer) {
+            *input_pointer;  // OK - narrowed inside if  // expected-warning{{expression result unused}}
+        }
+    }
+}
+
+// Test: narrowing from while condition with AND (proposed cJSON fix)
+void test_while_and_narrowing(const unsigned char* input_pointer,
+                               unsigned char* output_pointer,
+                               const unsigned char* input_end) {
+    while (input_pointer && output_pointer && input_pointer < input_end) {
+        if (*input_pointer != '\\') {  // Dereference in nested if condition
+            *output_pointer = *input_pointer;  // Should still be narrowed from while
+        }
+    }
+}

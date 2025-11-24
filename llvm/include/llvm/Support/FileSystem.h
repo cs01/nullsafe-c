@@ -211,6 +211,11 @@ public:
   uint64_t getSize() const {
     return (uint64_t(FileSizeHigh) << 32) + FileSizeLow;
   }
+#else
+  // BINJI_HACK: WASI stub
+  uint32_t getUser() const { return 0; }
+  uint32_t getGroup() const { return 0; }
+  uint64_t getSize() const { return 0; }
 #endif
 
   // setters
@@ -1231,6 +1236,12 @@ LLVM_ABI std::error_code closeFile(file_t &F);
 ///          error code is returned.
 LLVM_ABI std::error_code changeFileOwnership(int FD, uint32_t Owner,
                                              uint32_t Group);
+#elif defined(BINJI_HACK)
+// BINJI_HACK: WASI stub
+inline std::error_code changeFileOwnership(int FD, uint32_t Owner,
+                                           uint32_t Group) {
+  return std::error_code();
+}
 #endif
 
 /// RAII class that facilitates file locking.

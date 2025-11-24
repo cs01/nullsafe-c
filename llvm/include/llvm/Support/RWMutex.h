@@ -16,8 +16,10 @@
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Threading.h"
 #include <cassert>
+#ifndef BINJI_HACK
 #include <mutex>
 #include <shared_mutex>
+#endif
 
 #if defined(__APPLE__)
 #define LLVM_USE_RW_MUTEX_IMPL
@@ -97,9 +99,9 @@ private:
 /// indicates whether this mutex should become a no-op when we're not
 /// running in multithreaded mode.
 template <bool mt_only> class SmartRWMutex {
-#if !defined(LLVM_USE_RW_MUTEX_IMPL)
+#if !defined(LLVM_USE_RW_MUTEX_IMPL) && !defined(BINJI_HACK)
   std::shared_mutex impl;
-#else
+#elif defined(LLVM_USE_RW_MUTEX_IMPL)
   RWMutexImpl impl;
 #endif
   unsigned readers = 0;
@@ -107,10 +109,12 @@ template <bool mt_only> class SmartRWMutex {
 
 public:
   bool lock_shared() {
+#if !defined(BINJI_HACK)
     if (!mt_only || llvm_is_multithreaded()) {
       impl.lock_shared();
       return true;
     }
+#endif
 
     // Single-threaded debugging code.  This would be racy in multithreaded
     // mode, but provides not basic checks in single threaded mode.
@@ -119,10 +123,12 @@ public:
   }
 
   bool unlock_shared() {
+#if !defined(BINJI_HACK)
     if (!mt_only || llvm_is_multithreaded()) {
       impl.unlock_shared();
       return true;
     }
+#endif
 
     // Single-threaded debugging code.  This would be racy in multithreaded
     // mode, but provides not basic checks in single threaded mode.
@@ -131,13 +137,21 @@ public:
     return true;
   }
 
-  bool try_lock_shared() { return impl.try_lock_shared(); }
+  bool try_lock_shared() {
+#if !defined(BINJI_HACK)
+    return impl.try_lock_shared();
+#else
+    return true;
+#endif
+  }
 
   bool lock() {
+#if !defined(BINJI_HACK)
     if (!mt_only || llvm_is_multithreaded()) {
       impl.lock();
       return true;
     }
+#endif
 
     // Single-threaded debugging code.  This would be racy in multithreaded
     // mode, but provides not basic checks in single threaded mode.
@@ -147,10 +161,12 @@ public:
   }
 
   bool unlock() {
+#if !defined(BINJI_HACK)
     if (!mt_only || llvm_is_multithreaded()) {
       impl.unlock();
       return true;
     }
+#endif
 
     // Single-threaded debugging code.  This would be racy in multithreaded
     // mode, but provides not basic checks in single threaded mode.
@@ -159,13 +175,19 @@ public:
     return true;
   }
 
-  bool try_lock() { return impl.try_lock(); }
+  bool try_lock() {
+#if !defined(BINJI_HACK)
+    return impl.try_lock();
+#else
+    return true;
+#endif
+  }
 };
 
 typedef SmartRWMutex<false> RWMutex;
 
 /// ScopedReader - RAII acquisition of a reader lock
-#if !defined(LLVM_USE_RW_MUTEX_IMPL)
+#if !defined(LLVM_USE_RW_MUTEX_IMPL) && !defined(BINJI_HACK)
 template <bool mt_only>
 using SmartScopedReader = const std::shared_lock<SmartRWMutex<mt_only>>;
 #else
@@ -182,7 +204,7 @@ template <bool mt_only> struct SmartScopedReader {
 typedef SmartScopedReader<false> ScopedReader;
 
 /// ScopedWriter - RAII acquisition of a writer lock
-#if !defined(LLVM_USE_RW_MUTEX_IMPL)
+#if !defined(LLVM_USE_RW_MUTEX_IMPL) && !defined(BINJI_HACK)
 template <bool mt_only>
 using SmartScopedWriter = std::lock_guard<SmartRWMutex<mt_only>>;
 #else

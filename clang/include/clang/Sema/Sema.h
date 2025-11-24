@@ -1222,6 +1222,10 @@ public:
   /// and narrow variables accordingly.
   void HandleAssertNarrowing(FunctionDecl *FDecl, CallExpr *TheCall);
 
+  /// cbang: Invalidate narrowing for a specific variable.
+  /// This is used when a variable is modified (e.g., by ++ or --).
+  void InvalidateNarrowingForVariable(const VarDecl *VD);
+
   /// cbang: Invalidate all narrowing in the current scope.
   /// This is called after function calls to be conservative about side effects.
   void InvalidateNarrowingInCurrentScope();

@@ -1056,6 +1056,16 @@ void Sema::InvalidateNarrowingInCurrentScope() {
   }
 }
 
+void Sema::InvalidateNarrowingForVariable(const VarDecl *VD) {
+  if (!VD || NullabilityNarrowingScopes.empty())
+    return;
+
+  // Remove the variable's narrowing from all scopes
+  for (auto &Scope : NullabilityNarrowingScopes) {
+    Scope.erase(VD);
+  }
+}
+
 // Generate diagnostics when adding or removing effects in a type conversion.
 void Sema::diagnoseFunctionEffectConversion(QualType DstType, QualType SrcType,
                                             SourceLocation Loc) {

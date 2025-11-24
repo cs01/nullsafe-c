@@ -15,10 +15,14 @@
 #include "llvm/Support/Threading.h"
 
 #include <atomic>
+#ifndef BINJI_HACK
 #include <future>
+#endif
 #include <memory>
+#ifndef BINJI_HACK
 #include <mutex>
 #include <thread>
+#endif
 #include <vector>
 
 llvm::ThreadPoolStrategy llvm::parallel::strategy;

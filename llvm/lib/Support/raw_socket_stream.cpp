@@ -21,9 +21,11 @@
 #include <functional>
 
 #ifndef _WIN32
+#ifndef BINJI_HACK
 #include <poll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#endif
 #else
 #include "llvm/Support/Windows/WindowsSupport.h"
 // winsock2.h must be included before afunix.h. Briefly turn off clang-format to
@@ -56,11 +58,15 @@ WSABalancer::~WSABalancer() { WSACleanup(); }
 static std::error_code getLastSocketErrorCode() {
 #ifdef _WIN32
   return std::error_code(::WSAGetLastError(), std::system_category());
+#elif defined(BINJI_HACK)
+  // BINJI_HACK: WASI stub - sockets not supported
+  return std::make_error_code(std::errc::not_supported);
 #else
   return errnoAsErrorCode();
 #endif
 }
 
+#ifndef BINJI_HACK
 static sockaddr_un setSocketAddr(StringRef SocketPath) {
   struct sockaddr_un Addr;
   memset(&Addr, 0, sizeof(Addr));
@@ -68,8 +74,14 @@ static sockaddr_un setSocketAddr(StringRef SocketPath) {
   strncpy(Addr.sun_path, SocketPath.str().c_str(), sizeof(Addr.sun_path) - 1);
   return Addr;
 }
+#endif
 
 static Expected<int> getSocketFD(StringRef SocketPath) {
+#ifdef BINJI_HACK
+  // BINJI_HACK: WASI stub - sockets not supported
+  return llvm::make_error<StringError>(getLastSocketErrorCode(),
+                                       "Sockets not supported in WASI");
+#else
 #ifdef _WIN32
   SOCKET Socket = socket(AF_UNIX, SOCK_STREAM, 0);
   if (Socket == INVALID_SOCKET) {
@@ -100,24 +112,16 @@ static Expected<int> getSocketFD(StringRef SocketPath) {
 #else
   return Socket;
 #endif // _WIN32
-}
-
-ListeningSocket::ListeningSocket(int SocketFD, StringRef SocketPath,
-                                 int PipeFD[2])
-    : FD(SocketFD), SocketPath(SocketPath), PipeFD{PipeFD[0], PipeFD[1]} {}
-
-ListeningSocket::ListeningSocket(ListeningSocket &&LS)
-    : FD(LS.FD.load()), SocketPath(LS.SocketPath),
-      PipeFD{LS.PipeFD[0], LS.PipeFD[1]} {
-
-  LS.FD = -1;
-  LS.SocketPath.clear();
-  LS.PipeFD[0] = -1;
-  LS.PipeFD[1] = -1;
+#endif // !BINJI_HACK
 }
 
 Expected<ListeningSocket> ListeningSocket::createUnix(StringRef SocketPath,
                                                       int MaxBacklog) {
+#ifdef BINJI_HACK
+  // BINJI_HACK: WASI stub - sockets not supported
+  return llvm::make_error<StringError>(getLastSocketErrorCode(),
+                                       "Sockets not supported in WASI");
+#else
 
   // Handle instances where the target socket address already exists and
   // differentiate between a preexisting file with and without a bound socket
@@ -193,8 +197,10 @@ Expected<ListeningSocket> ListeningSocket::createUnix(StringRef SocketPath,
 #else
   return ListeningSocket{Socket, SocketPath, PipeFD};
 #endif // _WIN32
+#endif // BINJI_HACK
 }
 
+#ifndef BINJI_HACK
 // If a file descriptor being monitored by ::poll is closed by another thread,
 // the result is unspecified. In the case ::poll does not unblock and return,
 // when ActiveFD is closed, you can provide another file descriptor via CancelFD
@@ -356,3 +362,5 @@ ssize_t raw_socket_stream::read(char *Ptr, size_t Size,
   }
   return raw_fd_stream::read(Ptr, Size);
 }
+
+#endif // !BINJI_HACK

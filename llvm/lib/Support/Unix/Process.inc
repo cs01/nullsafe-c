@@ -69,6 +69,10 @@ Process::Pid Process::getProcessId() {
 // On Cygwin, getpagesize() returns 64k(AllocationGranularity) and
 // offset in mmap(3) should be aligned to the AllocationGranularity.
 Expected<unsigned> Process::getPageSize() {
+#ifdef BINJI_HACK
+  // BINJI_HACK: WASI stub - return standard 64KB page size
+  return 65536;
+#else
 #if defined(HAVE_GETAUXVAL)
   static const int page_size = ::getauxval(AT_PAGESZ);
 #elif defined(HAVE_GETPAGESIZE)
@@ -84,9 +88,14 @@ Expected<unsigned> Process::getPageSize() {
   assert(page_size > 0 && "Page size cannot be 0");
   assert((page_size % 1024) == 0 && "Page size must be aligned by 1024");
   return static_cast<unsigned>(page_size);
+#endif
 }
 
 size_t Process::GetMallocUsage() {
+#ifdef BINJI_HACK
+  // BINJI_HACK: WASI stub - malloc tracking not supported
+  return 0;
+#else
 #if defined(HAVE_MALLINFO2)
   struct mallinfo2 mi;
   mi = ::mallinfo2();
@@ -119,13 +128,21 @@ size_t Process::GetMallocUsage() {
 #endif
   return 0;
 #endif
+#endif
 }
 
 void Process::GetTimeUsage(TimePoint<> &elapsed,
                            std::chrono::nanoseconds &user_time,
                            std::chrono::nanoseconds &sys_time) {
+#ifdef BINJI_HACK
+  // BINJI_HACK: WASI stub - time usage tracking not supported
+  elapsed = std::chrono::system_clock::now();
+  user_time = std::chrono::nanoseconds::zero();
+  sys_time = std::chrono::nanoseconds::zero();
+#else
   elapsed = std::chrono::system_clock::now();
   std::tie(user_time, sys_time) = getRUsageTimes();
+#endif
 }
 
 #if defined(HAVE_MACH_MACH_H) && !defined(__GNU__)
@@ -191,11 +208,16 @@ void Process::PreventCoreFiles() {
 }
 
 std::optional<std::string> Process::GetEnv(StringRef Name) {
+#ifdef BINJI_HACK
+  // BINJI_HACK: WASI stub - environment variables not fully supported
+  return std::nullopt;
+#else
   std::string NameStr = Name.str();
   const char *Val = ::getenv(NameStr.c_str());
   if (!Val)
     return std::nullopt;
   return std::string(Val);
+#endif
 }
 
 namespace {

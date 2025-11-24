@@ -14430,6 +14430,16 @@ static QualType CheckIncrementDecrementOperand(Sema &S, Expr *Op,
   // Now make sure the operand is a modifiable lvalue.
   if (CheckForModifiableLvalue(Op, OpLoc, S))
     return QualType();
+
+  // cbang: Note on narrowing for ++/--:
+  // We treat p++ and ++p similar to p + 1 for narrowing purposes.
+  // If p is narrowed to nonnull, then p++ should also be nonnull (it's the same
+  // pointer, just incremented). Our pointer arithmetic narrowing handles this.
+  // We don't explicitly invalidate here because:
+  // 1. The value of p++ is the old value (for post-increment), which was narrowed
+  // 2. The new value of p is still a pointer, just offset
+  // 3. Pointer arithmetic already preserves narrowing
+
   if (S.getLangOpts().CPlusPlus20 && ResType.isVolatileQualified()) {
     // C++2a [expr.pre.inc]p1, [expr.post.inc]p1:
     //   An operand with volatile-qualified type is deprecated
@@ -14891,6 +14901,23 @@ static QualType CheckIndirectionOperand(Sema &S, Expr *Op, ExprValueKind &VK,
       if (!NarrowedType.isNull()) {
         // Use the narrowed type for nullability checking
         CheckType = NarrowedType;
+      }
+    }
+  }
+  // cbang: Also check if this is an increment/decrement of a narrowed variable
+  // For *p++, Op is the UnaryOperator(++), and its sub-expression is the variable
+  else if (const auto *UO = dyn_cast<UnaryOperator>(Op->IgnoreParenImpCasts())) {
+    if (UO->getOpcode() == UO_PostInc || UO->getOpcode() == UO_PreInc ||
+        UO->getOpcode() == UO_PostDec || UO->getOpcode() == UO_PreDec) {
+      // Get the variable being incremented/decremented
+      if (const auto *DRE = dyn_cast<DeclRefExpr>(UO->getSubExpr()->IgnoreParenImpCasts())) {
+        if (const auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+          QualType NarrowedType = S.GetNarrowedType(VD);
+          if (!NarrowedType.isNull()) {
+            // The result of p++ is the old value of p, which had the narrowed type
+            CheckType = NarrowedType;
+          }
+        }
       }
     }
   }

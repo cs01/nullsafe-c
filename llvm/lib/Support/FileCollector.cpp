@@ -19,7 +19,9 @@ FileCollectorBase::FileCollectorBase() = default;
 FileCollectorBase::~FileCollectorBase() = default;
 
 void FileCollectorBase::addFile(const Twine &File) {
+#ifndef BINJI_HACK
   std::lock_guard<std::mutex> lock(Mutex);
+#endif
   std::string FileStr = File.str();
   if (markAsSeen(FileStr))
     addFileImpl(FileStr);
@@ -181,7 +183,9 @@ std::error_code FileCollector::copyFiles(bool StopOnError) {
     return Err;
   }
 
+#ifndef BINJI_HACK
   std::lock_guard<std::mutex> lock(Mutex);
+#endif
 
   for (auto &entry : VFSWriter.getMappings()) {
     // Get the status of the original file/directory.
@@ -236,7 +240,9 @@ std::error_code FileCollector::copyFiles(bool StopOnError) {
 }
 
 std::error_code FileCollector::writeMapping(StringRef MappingFile) {
+#ifndef BINJI_HACK
   std::lock_guard<std::mutex> lock(Mutex);
+#endif
 
   VFSWriter.setOverlayDir(OverlayRoot);
   VFSWriter.setCaseSensitivity(isCaseSensitivePath(OverlayRoot));

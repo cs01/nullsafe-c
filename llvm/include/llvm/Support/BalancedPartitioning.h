@@ -117,8 +117,10 @@ private:
   /// threads.
   struct BPThreadPool {
     ThreadPoolInterface &TheThreadPool;
+#ifndef BINJI_HACK
     std::mutex mtx;
     std::condition_variable cv;
+#endif
     /// The number of threads that could spawn more threads
     std::atomic<int> NumActiveThreads = 0;
     /// Only true when all threads are down spawning new threads

@@ -33,6 +33,9 @@ namespace sys {
 const char EnvPathSeparator = ':';
 #elif defined(_WIN32)
 const char EnvPathSeparator = ';';
+#else
+// BINJI_HACK: WASI uses colon like Unix
+const char EnvPathSeparator = ':';
 #endif
 
 #if defined(_WIN32)
