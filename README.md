@@ -72,7 +72,7 @@ void legacy_function(int* p) { ... }
 
 ## How It Works
 
-Strict nullability adds **flow-sensitive analysis** to Clang's semantic analyzer. When you write `if (p)`, the compiler tracks that `p` is non-null within that branch. Unlike Swift, TypeScript, or Kotlin where this is built into the language, we layer it onto C's type system—giving you modern null safety while keeping C's simplicity.
+Strict nullability adds **flow-sensitive analysis** to Clang's semantic analyzer. When you write `if (p)`, the compiler tracks that `p` is non-null within that branch—just like TypeScript, Swift, or Kotlin do. The difference is we add this to C without changing the language itself.
 
 ### Function Call Invalidation
 
