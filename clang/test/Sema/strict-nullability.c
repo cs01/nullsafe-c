@@ -526,3 +526,76 @@ void test_pure_attr_preserves_narrowing(const char *zDate) {
     }
     char val = *zDate - '0';  // Should be OK - zDate still non-null after pure function call
 }
+
+// ============================================================================
+// Macro tests (#define with nullability attributes)
+// ============================================================================
+
+// Test: Basic macro expansion with _Nonnull
+#define NONNULL_PTR int _Nonnull
+void test_macro_nonnull(NONNULL_PTR p) {
+    *p = 42;  // OK - p is nonnull via macro
+}
+
+// Test: Macro with nullable pointer
+#define NULLABLE_PTR int*
+void test_macro_nullable(NULLABLE_PTR p) {
+    *p = 42;  // expected-warning{{dereferencing nullable pointer of type 'int * _Nullable'}}
+}
+
+// Test: Macro with explicit _Nullable
+#define EXPLICIT_NULLABLE int _Nullable *
+void test_macro_explicit_nullable(EXPLICIT_NULLABLE p) {
+    *p = 42;  // expected-warning{{dereferencing nullable pointer of type 'int * _Nullable'}}
+}
+
+// Test: Function macro that creates nonnull pointer
+#define MAKE_NONNULL_FUNC(name) void name(int _Nonnull p) { *p = 0; }
+MAKE_NONNULL_FUNC(generated_nonnull_func)
+
+void test_macro_generated_func(void) {
+    int x = 5;
+    generated_nonnull_func(&x);  // OK
+    generated_nonnull_func(0);   // expected-error{{null passed to a callee that requires a non-null argument}}
+}
+
+// Test: Typedef via macro
+#define DEFINE_NONNULL_TYPE(T) typedef T _Nonnull nonnull_##T##_ptr
+DEFINE_NONNULL_TYPE(char);
+
+void test_macro_typedef(nonnull_char_ptr p) {
+    *p = 'x';  // OK - p is nonnull via macro typedef
+}
+
+// Test: Macro for parameter declaration
+#define PARAM_NONNULL(type, name) type _Nonnull name
+void takes_macro_param(PARAM_NONNULL(int*, p)) {
+    *p = 42;  // OK - p is nonnull
+}
+
+void test_macro_param_caller(void) {
+    int x = 0;
+    takes_macro_param(&x);  // OK
+    takes_macro_param(0);   // expected-error{{null passed to a callee that requires a non-null argument}}
+}
+
+// Test: Macro combining pointers and attributes
+#define PTR_WITH_ATTR(type, attr) type attr *
+void test_ptr_attr_macro(PTR_WITH_ATTR(int, _Nonnull) p) {
+    *p = 42;  // OK - nonnull via macro expansion
+}
+
+// Test: Macro for common nullable pattern
+#define NULLABLE_OUT_PARAM int**
+void test_nullable_out_param(NULLABLE_OUT_PARAM out) {
+    if (out) {
+        *out = 0;  // OK - out is narrowed
+    }
+}
+
+// Test: Stringification should not affect nullability
+#define STRINGIFY(x) #x
+void test_stringify(int _Nonnull p) {
+    const char *name = STRINGIFY(p);  // OK - just creates a string
+    *p = 42;  // OK - p is still nonnull
+}
