@@ -21,11 +21,9 @@
 #include <functional>
 
 #ifndef _WIN32
-#ifndef BINJI_HACK
 #include <poll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#endif
 #else
 #include "llvm/Support/Windows/WindowsSupport.h"
 // winsock2.h must be included before afunix.h. Briefly turn off clang-format to
@@ -58,15 +56,11 @@ WSABalancer::~WSABalancer() { WSACleanup(); }
 static std::error_code getLastSocketErrorCode() {
 #ifdef _WIN32
   return std::error_code(::WSAGetLastError(), std::system_category());
-#elif defined(BINJI_HACK)
-  // BINJI_HACK: WASI stub - sockets not supported
-  return std::make_error_code(std::errc::not_supported);
 #else
   return errnoAsErrorCode();
 #endif
 }
 
-#ifndef BINJI_HACK
 static sockaddr_un setSocketAddr(StringRef SocketPath) {
   struct sockaddr_un Addr;
   memset(&Addr, 0, sizeof(Addr));
@@ -74,34 +68,22 @@ static sockaddr_un setSocketAddr(StringRef SocketPath) {
   strncpy(Addr.sun_path, SocketPath.str().c_str(), sizeof(Addr.sun_path) - 1);
   return Addr;
 }
-#endif
 
 static Expected<int> getSocketFD(StringRef SocketPath) {
-#ifdef BINJI_HACK
-  // BINJI_HACK: WASI stub - sockets not supported
-  return llvm::make_error<StringError>(getLastSocketErrorCode(),
-                                       "Sockets not supported in WASI");
-#else
 #ifdef _WIN32
   SOCKET Socket = socket(AF_UNIX, SOCK_STREAM, 0);
   if (Socket == INVALID_SOCKET) {
+    return llvm::make_error<StringError>(getLastSocketErrorCode(),
+                                         "Socket create failed");
+  }
 #else
   int Socket = socket(AF_UNIX, SOCK_STREAM, 0);
   if (Socket == -1) {
-#endif // _WIN32
     return llvm::make_error<StringError>(getLastSocketErrorCode(),
-                                         "Create socket failed");
+                                         "Socket create failed");
   }
-
-#ifdef __CYGWIN__
-  // On Cygwin, UNIX sockets involve a handshake between connect and accept
-  // to enable SO_PEERCRED/getpeereid handling.  This necessitates accept being
-  // called before connect can return, but at least the tests in
-  // llvm/unittests/Support/raw_socket_stream_test do both on the same thread
-  // (first connect and then accept), resulting in a deadlock.  This call turns
-  // off the handshake (and SO_PEERCRED/getpeereid support).
-  setsockopt(Socket, SOL_SOCKET, SO_PEERCRED, NULL, 0);
 #endif
+
   struct sockaddr_un Addr = setSocketAddr(SocketPath);
   if (::connect(Socket, (struct sockaddr *)&Addr, sizeof(Addr)) == -1)
     return llvm::make_error<StringError>(getLastSocketErrorCode(),
@@ -112,42 +94,35 @@ static Expected<int> getSocketFD(StringRef SocketPath) {
 #else
   return Socket;
 #endif // _WIN32
-#endif // !BINJI_HACK
 }
 
 Expected<ListeningSocket> ListeningSocket::createUnix(StringRef SocketPath,
                                                       int MaxBacklog) {
-#ifdef BINJI_HACK
-  // BINJI_HACK: WASI stub - sockets not supported
-  return llvm::make_error<StringError>(getLastSocketErrorCode(),
-                                       "Sockets not supported in WASI");
-#else
 
   // Handle instances where the target socket address already exists and
   // differentiate between a preexisting file with and without a bound socket
   //
-  // ::bind will return std::errc:address_in_use if a file at the socket address
-  // already exists (e.g., the file was not properly unlinked due to a crash)
-  // even if another socket has not yet binded to that address
+  // ::bind will return -1 and set errno to EADDRINUSE if a socket is already
+  // bound to the target address, however, if a file at the socket address
+  // already exists but does not have a bound socket then ::bind will return -1
+  // and set errno to EINVAL.
+#ifndef _WIN32
   if (llvm::sys::fs::exists(SocketPath)) {
     Expected<int> MaybeFD = getSocketFD(SocketPath);
     if (!MaybeFD) {
-
-      // Regardless of the error, notify the caller that a file already exists
-      // at the desired socket address and that there is no bound socket at that
-      // address. The file must be removed before ::bind can use the address
       consumeError(MaybeFD.takeError());
+      // Regardless of the error, there exists a file at the socket path that
+      // needs to be removed before a socket can successfully bind to the
+      // socket address.
+      ::unlink(SocketPath.str().c_str());
+    } else {
+      ::close(*MaybeFD);
       return llvm::make_error<StringError>(
           std::make_error_code(std::errc::file_exists),
           "Socket address unavailable");
     }
-    ::close(std::move(*MaybeFD));
-
-    // Notify caller that the provided socket address already has a bound socket
-    return llvm::make_error<StringError>(
-        std::make_error_code(std::errc::address_in_use),
-        "Socket address unavailable");
   }
+#endif
 
 #ifdef _WIN32
   WSABalancer _;
@@ -197,10 +172,8 @@ Expected<ListeningSocket> ListeningSocket::createUnix(StringRef SocketPath,
 #else
   return ListeningSocket{Socket, SocketPath, PipeFD};
 #endif // _WIN32
-#endif // BINJI_HACK
 }
 
-#ifndef BINJI_HACK
 // If a file descriptor being monitored by ::poll is closed by another thread,
 // the result is unspecified. In the case ::poll does not unblock and return,
 // when ActiveFD is closed, you can provide another file descriptor via CancelFD
@@ -219,15 +192,21 @@ manageTimeout(const std::chrono::milliseconds &Timeout,
 #ifdef _WIN32
   SOCKET WinServerSock = _get_osfhandle(getActiveFD());
   FD[0].fd = WinServerSock;
-#else
-  FD[0].fd = getActiveFD();
-#endif
   uint8_t FDCount = 1;
   if (CancelFD.has_value()) {
     FD[1].events = POLLIN;
     FD[1].fd = CancelFD.value();
     FDCount++;
   }
+#else
+  FD[0].fd = getActiveFD();
+  uint8_t FDCount = 1;
+  if (CancelFD.has_value()) {
+    FD[1].events = POLLIN;
+    FD[1].fd = CancelFD.value();
+    FDCount++;
+  }
+#endif
 
   // Keep track of how much time has passed in case ::poll or WSAPoll are
   // interupted by a signal and need to be recalled
@@ -363,4 +342,3 @@ ssize_t raw_socket_stream::read(char *Ptr, size_t Size,
   return raw_fd_stream::read(Ptr, Size);
 }
 
-#endif // !BINJI_HACK

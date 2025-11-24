@@ -1573,9 +1573,7 @@ public:
               AddStream, Cache, Task, BM, CombinedIndex, ImportList, ExportList,
               ResolvedODR, DefinedGlobals, ModuleMap);
           if (E) {
-#ifndef BINJI_HACK
             std::unique_lock<std::mutex> L(ErrMu);
-#endif
             if (Err)
               Err = joinErrors(std::move(*Err), std::move(E));
             else
@@ -1860,9 +1858,7 @@ public:
               getThinLTOOutputFile(ModulePath, OldPrefix, NewPrefix);
           auto E = emitFiles(ImportList, ModulePath, NewModulePath);
           if (E) {
-#ifndef BINJI_HACK
             std::unique_lock<std::mutex> L(ErrMu);
-#endif
             if (Err)
               Err = joinErrors(std::move(*Err), std::move(E));
             else
@@ -2313,9 +2309,7 @@ public:
         [=](Job &J, const FunctionImporter::ImportMapTy &ImportList) {
           if (auto E = emitFiles(ImportList, J.ModuleID, J.ModuleID.str(),
                                  J.SummaryIndexPath, J.ImportsFiles)) {
-#ifndef BINJI_HACK
             std::unique_lock<std::mutex> L(ErrMu);
-#endif
             if (Err)
               Err = joinErrors(std::move(*Err), std::move(E));
             else

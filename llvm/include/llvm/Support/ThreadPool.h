@@ -21,7 +21,6 @@
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/thread.h"
 
-#ifndef BINJI_HACK
 #include <future>
 #include <condition_variable>
 #include <deque>
@@ -29,7 +28,6 @@
 #include <memory>
 #include <mutex>
 #include <utility>
-#endif
 
 namespace llvm {
 
@@ -94,7 +92,6 @@ public:
 
   /// Asynchronous submission of a task to the pool. The returned future can be
   /// used to wait for the task to finish and is *non-blocking* on destruction.
-#ifndef BINJI_HACK
   template <typename Func>
   auto async(Func &&F) -> std::shared_future<decltype(F())> {
     return asyncImpl(std::function<decltype(F())()>(std::forward<Func>(F)),
@@ -118,7 +115,6 @@ private:
     asyncEnqueue([Future]() { Future.wait(); }, Group);
     return Future;
   }
-#endif
 };
 
 #if LLVM_ENABLE_THREADS
@@ -248,12 +244,7 @@ private:
   }
 
   /// Tasks waiting for execution in the pool.
-#ifndef BINJI_HACK
   std::deque<std::pair<std::function<void()>, ThreadPoolTaskGroup *>> Tasks;
-#else
-  // BINJI_HACK: Use vector as stub since deque is not available in WASI
-  std::vector<std::pair<std::function<void()>, ThreadPoolTaskGroup *>> Tasks;
-#endif
 };
 
 #if LLVM_ENABLE_THREADS

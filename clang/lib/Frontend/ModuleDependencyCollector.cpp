@@ -92,7 +92,6 @@ void ModuleDependencyCollector::attachToPreprocessor(Preprocessor &PP) {
 }
 
 static bool isCaseSensitivePath(llvm::vfs::FileSystem &VFS, StringRef Path) {
-#ifndef BINJI_HACK
   SmallString<256> TmpDest = Path, UpperDest, RealDest;
   // Remove component traversals, links, etc.
   if (VFS.getRealPath(Path, TmpDest))
@@ -108,10 +107,6 @@ static bool isCaseSensitivePath(llvm::vfs::FileSystem &VFS, StringRef Path) {
   if (!VFS.getRealPath(UpperDest, RealDest) && Path == RealDest)
     return false;
   return true;
-#else
-  // BINJI_HACK: WASI VFS doesn't support getRealPath, assume case sensitive
-  return true;
-#endif
 }
 
 void ModuleDependencyCollector::writeFileMap() {

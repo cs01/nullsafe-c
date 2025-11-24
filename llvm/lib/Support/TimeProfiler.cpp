@@ -23,9 +23,7 @@
 #include <cassert>
 #include <chrono>
 #include <memory>
-#ifndef BINJI_HACK
 #include <mutex>
-#endif
 #include <string>
 #include <vector>
 
@@ -42,9 +40,7 @@ using std::chrono::time_point;
 using std::chrono::time_point_cast;
 
 struct TimeTraceProfilerInstances {
-#ifndef BINJI_HACK
   std::mutex Lock;
-#endif
   std::vector<TimeTraceProfiler *> List;
 };
 
@@ -217,9 +213,7 @@ struct llvm::TimeTraceProfiler {
   void write(raw_pwrite_stream &OS) {
     // Acquire Mutex as reading ThreadTimeTraceProfilerInstances.
     auto &Instances = getTimeTraceProfilerInstances();
-#ifndef BINJI_HACK
     std::lock_guard<std::mutex> Lock(Instances.Lock);
-#endif
     assert(Stack.empty() &&
            "All profiler sections should be ended when calling write");
     assert(llvm::all_of(Instances.List,
@@ -411,9 +405,7 @@ void llvm::timeTraceProfilerCleanup() {
   TimeTraceProfilerInstance = nullptr;
 
   auto &Instances = getTimeTraceProfilerInstances();
-#ifndef BINJI_HACK
   std::lock_guard<std::mutex> Lock(Instances.Lock);
-#endif
   for (auto *TTP : Instances.List)
     delete TTP;
   Instances.List.clear();
@@ -423,9 +415,7 @@ void llvm::timeTraceProfilerCleanup() {
 // This doesn't remove the instance, just moves the pointer to global vector.
 void llvm::timeTraceProfilerFinishThread() {
   auto &Instances = getTimeTraceProfilerInstances();
-#ifndef BINJI_HACK
   std::lock_guard<std::mutex> Lock(Instances.Lock);
-#endif
   Instances.List.push_back(TimeTraceProfilerInstance);
   TimeTraceProfilerInstance = nullptr;
 }

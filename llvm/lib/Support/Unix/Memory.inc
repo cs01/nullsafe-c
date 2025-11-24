@@ -37,7 +37,6 @@ extern "C" void __clear_cache(void *, void *);
 #endif
 
 static int getPosixProtectionFlags(unsigned Flags) {
-#ifndef BINJI_HACK
   switch (Flags & llvm::sys::Memory::MF_RWE_MASK) {
   case llvm::sys::Memory::MF_READ:
     return PROT_READ;
@@ -66,10 +65,6 @@ static int getPosixProtectionFlags(unsigned Flags) {
   }
   // Provide a default return value as required by some compilers.
   return PROT_NONE;
-#else
-  // BINJI_HACK: WASI doesn't support mmap or memory protection flags
-  return 0;
-#endif
 }
 
 namespace llvm {
@@ -82,7 +77,6 @@ MemoryBlock Memory::allocateMappedMemory(size_t NumBytes,
   if (NumBytes == 0)
     return MemoryBlock();
 
-#ifndef BINJI_HACK
   // On platforms that have it, we can use MAP_ANON to get a memory-mapped
   // page without file backing, but we need a fallback of opening /dev/zero
   // for strictly POSIX platforms instead.
@@ -152,27 +146,14 @@ MemoryBlock Memory::allocateMappedMemory(size_t NumBytes,
   }
 
   return Result;
-#else
-  // BINJI_HACK: WASI doesn't support mmap, use malloc as fallback
-  MemoryBlock Result;
-  Result.Address = ::malloc(NumBytes);
-  Result.AllocatedSize = NumBytes;
-  Result.Flags = PFlags;
-  return Result;
-#endif
 }
 
 std::error_code Memory::releaseMappedMemory(MemoryBlock &M) {
   if (M.Address == nullptr || M.AllocatedSize == 0)
     return std::error_code();
 
-#ifndef BINJI_HACK
   if (0 != ::munmap(M.Address, M.AllocatedSize))
     return errnoAsErrorCode();
-#else
-  // BINJI_HACK: WASI doesn't support munmap, use free as fallback
-  ::free(M.Address);
-#endif
 
   M.Address = nullptr;
   M.AllocatedSize = 0;
@@ -197,7 +178,6 @@ std::error_code Memory::protectMappedMemory(const MemoryBlock &M,
 
   bool InvalidateCache = (Flags & MF_EXEC);
 
-#ifndef BINJI_HACK
 #if defined(__arm__) || defined(__aarch64__)
   // Certain ARM implementations treat icache clear instruction as a memory
   // read, and CPU segfaults on trying to clear cache on !PROT_READ page.
@@ -214,10 +194,6 @@ std::error_code Memory::protectMappedMemory(const MemoryBlock &M,
 #endif
 
   int Result = ::mprotect((void *)Start, End - Start, Protect);
-#else
-  // BINJI_HACK: WASI doesn't support mprotect
-  int Result = -1;
-#endif
 
   if (Result != 0)
     return errnoAsErrorCode();

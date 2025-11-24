@@ -14,21 +14,8 @@
 #include "llvm/Config/config.h"
 #include "llvm/Support/Threading.h"
 #include <cassert>
-#ifndef BINJI_HACK
 #include <mutex>
-#else
-// BINJI_HACK: Stub mutex types for WASI
-namespace std {
-  struct recursive_mutex {
-    void lock() {}
-    void unlock() {}
-  };
-  template<typename T>
-  struct lock_guard {
-    lock_guard(T&) {}
-  };
-}
-#endif
+
 using namespace llvm;
 
 static const ManagedStaticBase *StaticList = nullptr;

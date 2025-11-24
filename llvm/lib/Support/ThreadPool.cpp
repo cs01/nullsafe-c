@@ -305,12 +305,7 @@ void SingleThreadExecutor::wait() {
   // Sequential implementation running the tasks
   while (!Tasks.empty()) {
     auto Task = std::move(Tasks.front().first);
-#ifndef BINJI_HACK
     Tasks.pop_front();
-#else
-    // BINJI_HACK: vector doesn't have pop_front(), use erase
-    Tasks.erase(Tasks.begin());
-#endif
     Task();
   }
 }

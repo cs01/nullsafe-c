@@ -50,7 +50,7 @@ Null pointer dereferences are just one category of memory safety bugs. Here's ho
 
 ### Why This Still Matters
 
-While Null-Safe C doesn't solve all memory safety issues, null pointer dereferences are a significant problem:
+While Null-Safe Clang doesn't solve all memory safety issues, null pointer dereferences are a significant problem:
 
 - One in four memory safety bugs involve null pointer dereferences ([Microsoft Security Response Center](https://github.com/microsoft/MSRC-Security-Research/blob/master/papers/2019/The%20Memory%20Safety%20Story.pdf))
 - Zero runtime overhead - nullability checks are compile-time only, no runtime checks inserted

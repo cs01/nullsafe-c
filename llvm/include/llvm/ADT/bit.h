@@ -49,7 +49,6 @@
 #define LITTLE_ENDIAN 1234
 #define BYTE_ORDER BIG_ENDIAN
 #elif defined(__wasi__)
-/* BINJI_HACK: WASI/WebAssembly is always little-endian */
 /* WASI SDK already defines these in endian.h, so just include it */
 #include <endian.h>
 #else

@@ -13,26 +13,8 @@
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/thread.h"
 #include <cassert>
-#ifndef BINJI_HACK
 #include <mutex>
 #include <setjmp.h>
-#else
-// BINJI_HACK: Stub mutex for WASI
-namespace std {
-  struct mutex {
-    void lock() {}
-    void unlock() {}
-  };
-  template<typename T>
-  struct lock_guard {
-    lock_guard(T&) {}
-  };
-}
-// BINJI_HACK: Stub jmp_buf/setjmp/longjmp for WASI
-typedef int jmp_buf[1];
-#define setjmp(buf) 0
-#define longjmp(buf, val) ((void)0)
-#endif
 
 using namespace llvm;
 
@@ -347,7 +329,7 @@ static void uninstallExceptionOrSignalHandlers() {
   }
 }
 
-#elif !defined(BINJI_HACK) // !_WIN32
+#else // !_WIN32
 
 // Generic POSIX implementation.
 //
@@ -426,12 +408,6 @@ static void uninstallExceptionOrSignalHandlers() {
     sigaction(Signals[i], &PrevActions[i], nullptr);
 }
 
-#else // BINJI_HACK
-
-// BINJI_HACK: WASI stub - no signal handling
-static void installExceptionOrSignalHandlers() {}
-static void uninstallExceptionOrSignalHandlers() {}
-
 #endif // !_WIN32
 
 bool CrashRecoveryContext::RunSafely(function_ref<void()> Fn) {
@@ -493,11 +469,10 @@ bool CrashRecoveryContext::throwIfCrash(int RetCode) {
     return false;
 #if defined(_WIN32)
   ::RaiseException(RetCode, 0, 0, NULL);
-#elif !defined(BINJI_HACK)
+#elif true
   llvm::sys::unregisterHandlers();
   raise(RetCode - 128);
 #else
-  // BINJI_HACK: WASI stub - no signals
 #endif
   return true;
 }

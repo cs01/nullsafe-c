@@ -210,9 +210,7 @@ protected:
   bool ShouldEmitImportsFiles;
   DefaultThreadPool BackendThreadPool;
   std::optional<Error> Err;
-#ifndef BINJI_HACK
   std::mutex ErrMu;
-#endif
 
 public:
   ThinBackendProc(

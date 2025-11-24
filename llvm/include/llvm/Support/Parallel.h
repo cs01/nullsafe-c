@@ -17,13 +17,9 @@
 #include "llvm/Support/Threading.h"
 
 #include <algorithm>
-#ifndef BINJI_HACK
 #include <condition_variable>
-#endif
 #include <functional>
-#ifndef BINJI_HACK
 #include <mutex>
-#endif
 
 namespace llvm {
 
@@ -63,10 +59,8 @@ inline size_t getThreadCount() { return 1; }
 namespace detail {
 class Latch {
   uint32_t Count;
-#ifndef BINJI_HACK
   mutable std::mutex Mutex;
   mutable std::condition_variable Cond;
-#endif
 
 public:
   explicit Latch(uint32_t Count = 0) : Count(Count) {}
@@ -76,32 +70,19 @@ public:
   }
 
   void inc() {
-#ifndef BINJI_HACK
     std::lock_guard<std::mutex> lock(Mutex);
-#endif
     ++Count;
   }
 
   void dec() {
-#ifndef BINJI_HACK
     std::lock_guard<std::mutex> lock(Mutex);
-#endif
     if (--Count == 0)
-#ifndef BINJI_HACK
       Cond.notify_all();
-#else
-      ;
-#endif
   }
 
   void sync() const {
-#ifndef BINJI_HACK
     std::unique_lock<std::mutex> lock(Mutex);
     Cond.wait(lock, [&] { return Count == 0; });
-#else
-    // BINJI_HACK: No-op for WASI (no threading)
-    assert(Count == 0 && "Latch::sync() called with non-zero count in WASI");
-#endif
   }
 };
 } // namespace detail

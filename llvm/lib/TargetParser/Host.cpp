@@ -48,12 +48,6 @@
 #include <sys/param.h>
 #include <sys/sysctl.h>
 #endif
-#ifdef BINJI_HACK
-// WASI stub for updateTripleOSVersion
-static std::string updateTripleOSVersion(std::string Triple) {
-  return Triple;
-}
-#endif
 #ifdef _AIX
 #include <sys/systemcfg.h>
 #endif

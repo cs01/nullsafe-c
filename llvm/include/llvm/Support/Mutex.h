@@ -15,39 +15,18 @@
 
 #include "llvm/Support/Threading.h"
 #include <cassert>
-#ifndef BINJI_HACK
 #include <mutex>
-#endif
 
 namespace llvm
 {
   namespace sys
   {
-#ifdef BINJI_HACK
-    // BINJI_HACK: WASI doesn't support mutexes, provide stub implementation
-    namespace {
-      struct stub_recursive_mutex {
-        void lock() {}
-        void unlock() {}
-        bool try_lock() { return true; }
-      };
-      template<typename T>
-      struct stub_lock_guard {
-        stub_lock_guard(T&) {}
-      };
-    }
-#endif
-
     /// SmartMutex - A mutex with a compile time constant parameter that
     /// indicates whether this mutex should become a no-op when we're not
     /// running in multithreaded mode.
     template<bool mt_only>
     class SmartMutex {
-#ifndef BINJI_HACK
       std::recursive_mutex impl;
-#else
-      stub_recursive_mutex impl;
-#endif
       unsigned acquired = 0;
 
     public:
@@ -87,11 +66,7 @@ namespace llvm
     typedef SmartMutex<false> Mutex;
 
     template <bool mt_only>
-#ifndef BINJI_HACK
     using SmartScopedLock = std::lock_guard<SmartMutex<mt_only>>;
-#else
-    using SmartScopedLock = stub_lock_guard<SmartMutex<mt_only>>;
-#endif
 
     typedef SmartScopedLock<false> ScopedLock;
   }

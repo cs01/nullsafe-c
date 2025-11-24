@@ -177,9 +177,7 @@ const std::list<std::unique_ptr<ParsedAttrInfo>> &getAttributePluginInstances();
 } // namespace clang
 
 namespace llvm {
-#ifndef BINJI_HACK
 extern template class CLANG_TEMPLATE_ABI Registry<clang::ParsedAttrInfo>;
-#endif
 } // namespace llvm
 
 #endif // LLVM_CLANG_BASIC_PARSEDATTRINFO_H

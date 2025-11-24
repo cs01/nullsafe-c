@@ -159,9 +159,7 @@ public:
   void removeFile(StringRef File);
 
 private:
-#ifndef BINJI_HACK
   std::mutex Mutex;
-#endif
   llvm::StringSet<> Files;
 };
 
@@ -171,26 +169,20 @@ TemporaryFiles &TemporaryFiles::getInstance() {
 }
 
 TemporaryFiles::~TemporaryFiles() {
-#ifndef BINJI_HACK
   std::lock_guard<std::mutex> Guard(Mutex);
-#endif
   for (const auto &File : Files)
     llvm::sys::fs::remove(File.getKey());
 }
 
 void TemporaryFiles::addFile(StringRef File) {
-#ifndef BINJI_HACK
   std::lock_guard<std::mutex> Guard(Mutex);
-#endif
   auto IsInserted = Files.insert(File).second;
   (void)IsInserted;
   assert(IsInserted && "File has already been added");
 }
 
 void TemporaryFiles::removeFile(StringRef File) {
-#ifndef BINJI_HACK
   std::lock_guard<std::mutex> Guard(Mutex);
-#endif
   auto WasPresent = Files.erase(File);
   (void)WasPresent;
   assert(WasPresent && "File was not tracked");
