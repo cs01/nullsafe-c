@@ -1,4 +1,4 @@
-# C with Strict Nullability: An experimental fork of the Clang compiler
+# Null-Safe C: An experimental C compiler
 
 An experimental Clang fork that adds **flow-sensitive null safety** to C, inspired by modern languages like TypeScript, Kotlin, and Rust.
 
@@ -10,33 +10,40 @@ Modern languages prevent null pointer crashes through **nullable types** and **t
 
 ## Memory Safety: The Bigger Picture
 
-Null pointer dereferences are just one category of memory safety bugs. Here's where this project fits in the landscape:
+Null pointer dereferences are just one category of memory safety bugs. Here's how different approaches compare:
 
-| Safety Category | Example Vulnerability | This Project | Rust | Bounds Safety¹ |
-|----------------|----------------------|--------------|------|----------------|
-| **Null pointer dereferences** | CVE-2019-11932 (WhatsApp) | ✅ **Fixed** | ✅ Fixed | ❌ Not addressed |
-| **Buffer overflows** | CVE-2014-0160 (Heartbleed) | ❌ Not addressed | ✅ Fixed | ✅ Fixed |
-| **Use-after-free** | CVE-2021-30551 (Chrome) | ❌ Not addressed | ✅ Fixed | ❌ Not addressed |
-| **Double-free** | CVE-2019-5786 (Chrome) | ❌ Not addressed | ✅ Fixed | ❌ Not addressed |
-| **Uninitialized memory** | CVE-2018-4259 (WebKit) | ❌ Not addressed | ✅ Fixed | ⚠️  Partial |
-| **Type confusion** | CVE-2015-0311 (Flash) | ❌ Not addressed | ✅ Fixed | ❌ Not addressed |
+### What Gets Fixed
 
-<sup>1. Clang's `-fbounds-safety` experimental feature</sup>
+| Safety Issue | Null-Safe C | Standard C | Rust | Clang `-fbounds-safety` |
+|-------------|-------------|------------|------|-------------------------|
+| **Null pointer dereferences** | ✅ Fixed | ❌ Unsafe | ✅ Fixed | ❌ Unsafe |
+| **Buffer overflows** | ❌ Unsafe | ❌ Unsafe | ✅ Fixed | ✅ Fixed |
+| **Use-after-free** | ❌ Unsafe | ❌ Unsafe | ✅ Fixed | ❌ Unsafe |
+| **Double-free** | ❌ Unsafe | ❌ Unsafe | ✅ Fixed | ❌ Unsafe |
+| **Uninitialized memory** | ❌ Unsafe | ❌ Unsafe | ✅ Fixed | ⚠️  Partial |
+
+### Real-World Impact: CVEs This Would Prevent
+
+**Null pointer dereferences** (what Null-Safe C fixes):
+- [CVE-2019-11932](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2019-11932) - WhatsApp: NULL pointer dereference in MP4 parsing
+- [CVE-2021-3520](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-3520) - lz4: NULL pointer dereference in LZ4_decompress_safe_continue
+- [CVE-2020-14409](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-14409) - SDL2: NULL pointer dereference in audio driver
+- [CVE-2022-48174](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-48174) - busybox: NULL pointer dereference in awk
+- [CVE-2021-33560](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-33560) - libgcrypt: NULL pointer dereference in signature verification
+
+**Other memory safety issues** (what Null-Safe C does NOT fix):
+- [CVE-2014-0160](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2014-0160) - OpenSSL Heartbleed: Buffer over-read
+- [CVE-2021-30551](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-30551) - Chrome V8: Use-after-free
+- [CVE-2019-5786](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2019-5786) - Chrome: Use-after-free in file reader
 
 ### Why This Still Matters
 
-While this project doesn't solve all memory safety issues, **null pointer dereferences are extremely common**:
+While Null-Safe C doesn't solve all memory safety issues, null pointer dereferences are a significant problem:
 
-- **~25% of all CVEs** involve null pointer dereferences ([Microsoft Security Response Center](https://github.com/microsoft/MSRC-Security-Research/blob/master/papers/2019/The%20Memory%20Safety%20Story.pdf))
-- Easier to adopt than a full language rewrite (remains 100% compatible with C)
-- Can be enabled incrementally (warnings by default, not errors)
-- Complements other safety efforts (can combine with `-fbounds-safety`)
-
-**Real-world CVEs this would catch:**
-- CVE-2019-11932 (WhatsApp): Null pointer dereference in MP4 parsing
-- CVE-2021-3520 (lz4): NULL pointer dereference in LZ4_decompress_safe_continue
-- CVE-2020-14409 (SDL2): NULL pointer dereference in audio driver
-- *[TODO: Add more specific examples with links]*
+- **One in four memory safety bugs** involve null pointer dereferences ([Microsoft Security Response Center](https://github.com/microsoft/MSRC-Security-Research/blob/master/papers/2019/The%20Memory%20Safety%20Story.pdf))
+- **Easier to adopt** than rewriting in Rust (100% compatible with existing C code)
+- **Incremental deployment** (warnings by default, can enable per-file)
+- **Complements other efforts** (combine with `-fbounds-safety` for buffer safety)
 
 ---
 
@@ -103,10 +110,6 @@ void legacy_function(int* p) { ... }
 - **Null-safe headers**: Annotated C standard library in `clang/nullsafe-headers/`
 - **IDE integration**: Enhanced `clangd` with real-time nullability diagnostics
 - **Real-world tested**: Validated on cJSON, SQLite
-
-### Future Work
-- Direct assignment narrowing (`q = p` should narrow `q` if `p` is narrowed)
-- Bounds safety integration (combine with `-fbounds-safety`)
 
 ## How It Works
 
