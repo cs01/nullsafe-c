@@ -123,34 +123,49 @@ The `clang/nullsafe-headers/` directory contains nullability-annotated standard 
 ```c
 #include <string.h>  // System headers - no nullability info
 
-char* result = strdup(input);  // No warning - compiler doesn't know strdup can return NULL
-result[0] = 'x';                // Compiles fine, crashes at runtime if strdup failed
+void example(const char* input) {
+    char* result = strdup(input);  // No warning about either issue
+    result[0] = 'x';                // Compiles fine, but:
+                                    // - input might be NULL (strdup would crash)
+                                    // - result might be NULL (strdup can fail)
+}
 ```
 
 **With null-safe headers:**
 ```c
-#include "string.h"  // From clang/nullsafe-headers - strdup returns char* _Nullable
+#include "string.h"  // From clang/nullsafe-headers
 
-char* result = strdup(input);  // Compiler knows strdup can return NULL
-result[0] = 'x';                // ⚠️  Warning: dereferencing nullable pointer!
+void example(const char* input) {
+    char* result = strdup(input);  // ⚠️  Warning: passing nullable pointer to nonnull parameter
+    result[0] = 'x';                // ⚠️  Warning: dereferencing nullable pointer!
 
-// Fix: check the result
-if (result) {
-    result[0] = 'x';            // ✓ OK - flow analysis knows result is non-null here
-    free(result);
+    // Fix both issues:
+    if (input) {
+        char* result = strdup(input);  // ✓ OK - input is non-null
+        if (result) {
+            result[0] = 'x';            // ✓ OK - result is non-null
+            free(result);
+        }
+    }
 }
 ```
 
-The headers also catch when you pass NULL to functions that don't accept it:
+The headers catch both directions:
 
 ```c
 #include "string.h"
 
-char* str = NULL;
-strlen(str);        // ⚠️  Warning: strlen expects non-null argument!
+void test_returns(void) {
+    char* str = malloc(100);  // malloc returns _Nullable
+    str[0] = 'x';             // ⚠️  Warning: str might be NULL!
+}
 
-if (str) {
-    strlen(str);    // ✓ OK - str is non-null here
+void test_params(char* str) {
+    strlen(str);              // ⚠️  Warning: str is nullable, strlen expects nonnull!
+
+    if (str) {
+        strlen(str);          // ✓ OK - str is non-null here
+    }
 }
 ```
 
