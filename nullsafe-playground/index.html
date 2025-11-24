@@ -276,19 +276,59 @@
         }
 
         #editor {
-            flex: 1;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             padding: 20px;
             font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
             font-size: 14px;
             line-height: 1.7;
-            background: var(--bg-primary);
-            color: var(--text-primary);
+            background: transparent;
+            color: transparent;
             border: none;
             outline: none;
             resize: none;
             tab-size: 4;
             overflow-y: auto;
+            caret-color: white;
+            z-index: 2;
         }
+
+        #editor-wrapper {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #editor-highlight {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: 20px;
+            font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-y: auto;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Syntax highlighting colors - VS Code Dark+ theme */
+        .hljs-keyword { color: #569cd6; }  /* Blue for keywords */
+        .hljs-type { color: #4ec9b0; }     /* Teal for types */
+        .hljs-string { color: #ce9178; }   /* Orange for strings */
+        .hljs-number { color: #b5cea8; }   /* Light green for numbers */
+        .hljs-comment { color: #6a9955; font-style: italic; }  /* Green for comments */
+        .hljs-function { color: #dcdcaa; } /* Yellow for functions */
+        .hljs-preprocessor { color: #c586c0; }  /* Purple for preprocessor */
+        .hljs-operator { color: #d4d4d4; }
+        .hljs-punctuation { color: #d4d4d4; }
 
         #output {
             flex: 1;
@@ -422,7 +462,10 @@
                     <button class="icon-btn" title="Keyboard shortcut: Cmd/Ctrl+Enter">⌨️ Ctrl+Enter to compile</button>
                 </div>
             </div>
-            <textarea id="editor" spellcheck="false" placeholder="Write your C code here..."></textarea>
+            <div id="editor-wrapper">
+                <div id="editor-highlight"></div>
+                <textarea id="editor" spellcheck="false" placeholder="Write your C code here..."></textarea>
+            </div>
         </div>
 
         <div class="divider" id="divider"></div>
@@ -442,6 +485,7 @@
 
     <script>
         const editor = document.getElementById('editor');
+        const editorHighlight = document.getElementById('editor-highlight');
         const output = document.getElementById('output');
         const compileBtn = document.getElementById('compileBtn');
         const status = document.getElementById('status');
@@ -452,6 +496,78 @@
         const toast = document.getElementById('toast');
         const outputStats = document.getElementById('outputStats');
         const divider = document.getElementById('divider');
+
+        // Simple C syntax highlighter
+        function highlightCode(code) {
+            // Escape HTML
+            code = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+            // Store strings and comments temporarily to avoid highlighting inside them
+            const protected = [];
+            let index = 0;
+
+            // Protect multi-line comments
+            code = code.replace(/\/\*[\s\S]*?\*\//g, match => {
+                const placeholder = `___PROTECTED_${index}___`;
+                protected.push(`<span class="hljs-comment">${match}</span>`);
+                index++;
+                return placeholder;
+            });
+
+            // Protect single-line comments
+            code = code.replace(/\/\/.*/g, match => {
+                const placeholder = `___PROTECTED_${index}___`;
+                protected.push(`<span class="hljs-comment">${match}</span>`);
+                index++;
+                return placeholder;
+            });
+
+            // Protect strings
+            code = code.replace(/"([^"\\]|\\.)*"/g, match => {
+                const placeholder = `___PROTECTED_${index}___`;
+                protected.push(`<span class="hljs-string">${match}</span>`);
+                index++;
+                return placeholder;
+            });
+
+            // Now safely highlight everything else
+
+            // Preprocessor directives
+            code = code.replace(/(^|\n)(#\s*(?:include|define|undef|ifdef|ifndef|if|else|elif|endif|pragma|error|warning|line)\b[^\n]*)/g,
+                (match, newline, directive) => `${newline}<span class="hljs-preprocessor">${directive}</span>`);
+
+            // Numbers
+            code = code.replace(/\b(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?[fFlLuU]?\b/g,
+                match => `<span class="hljs-number">${match}</span>`);
+
+            // Keywords
+            code = code.replace(/\b(auto|break|case|char|const|continue|default|do|double|else|enum|extern|float|for|goto|if|inline|int|long|register|restrict|return|short|signed|sizeof|static|struct|switch|typedef|union|unsigned|void|volatile|while|_Bool|_Complex|_Imaginary|_Nullable|_Nonnull)\b/g,
+                match => `<span class="hljs-keyword">${match}</span>`);
+
+            // Function names
+            code = code.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*(?=\()/g,
+                (match, name) => `<span class="hljs-function">${name}</span> (`);
+
+            // Restore protected strings and comments
+            for (let i = 0; i < protected.length; i++) {
+                code = code.replace(`___PROTECTED_${i}___`, protected[i]);
+            }
+
+            return code;
+        }
+
+        function updateHighlight() {
+            const code = editor.value;
+            editorHighlight.innerHTML = highlightCode(code);
+            // Sync scroll
+            editorHighlight.scrollTop = editor.scrollTop;
+        }
+
+        // Update highlighting on input
+        editor.addEventListener('input', updateHighlight);
+        editor.addEventListener('scroll', () => {
+            editorHighlight.scrollTop = editor.scrollTop;
+        });
 
         const examples = {
             'null-check': `#include <stdio.h>
@@ -515,6 +631,7 @@ int main(void) {
 
         const defaultCode = examples['null-check'];
         editor.value = defaultCode;
+        updateHighlight(); // Initial highlight
 
         let ClangModule = null;
         let isCompiling = false;
@@ -559,6 +676,7 @@ int main(void) {
             const example = e.target.value;
             if (example && examples[example]) {
                 editor.value = examples[example];
+                updateHighlight(); // Update highlighting
                 showToast('Example loaded!');
                 e.target.value = '';
             }
