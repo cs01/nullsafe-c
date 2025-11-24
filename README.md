@@ -6,20 +6,26 @@ Bringing TypeScript/Kotlin-style null safety to C with flow-sensitive type narro
 
 This fork adds flow-sensitive nullability analysis to Clang while remaining 100% compatible with standard C. It includes all of Clang's features plus enhanced nullability checking in both the compiler and the `clangd` language server.
 
+**By default, strict nullability is enabled and issues warnings.** You can promote warnings to errors with `-Werror=nullability`, or disable the feature entirely with `-fno-strict-nullability`.
+
 ## Usage
 
-**Enable strict nullability (on by default):**
+**Basic usage (warnings enabled by default):**
 ```bash
-clang mycode.c                    # Strict nullability ON, warnings only
-clang -Werror=nullability mycode.c  # Promote warnings to errors
+clang mycode.c                          # Warnings for nullable dereferences
 ```
 
-**Disable for legacy code:**
+**Promote warnings to errors:**
 ```bash
-clang -fno-strict-nullability mycode.c  # Pure standard Clang behavior
+clang -Werror=nullability mycode.c      # Treat nullability issues as errors
 ```
 
-**Gradual adoption:**
+**Disable strict nullability:**
+```bash
+clang -fno-strict-nullability mycode.c  # Turn off nullability checking
+```
+
+**Gradual adoption (per-file or per-function):**
 ```c
 // Disable warnings for specific files
 #pragma clang diagnostic ignored "-Wnullability"
