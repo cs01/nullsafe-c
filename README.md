@@ -19,7 +19,7 @@ void unsafe(int* data) {
 **Standard Clang/GCC**: Both functions compile without warnings.
 **This fork**: The `unsafe` function warns you about the potential null dereference.
 
-This fork adds flow-sensitive nullability analysis to Clang while remaining 100% compatible with standard C. It includes all of Clang's features plus enhanced nullability checking in both the compiler and the `clangd` language server.
+This experimental fork of Clang adds flow-sensitive nullability analysis while remaining 100% compatible with standard C. It includes all of Clang's features plus enhanced nullability checking in both the compiler and the `clangd` language server.
 
 **By default, strict nullability is enabled and issues warnings.** You can promote warnings to errors with `-Werror=nullability`, or disable the feature entirely with `-fno-strict-nullability`.
 
