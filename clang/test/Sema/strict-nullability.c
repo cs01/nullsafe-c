@@ -1,15 +1,15 @@
 // RUN: %clang_cc1 -fsyntax-only -fblocks %s -verify
 
-// Test the *! (starbang) syntax for non-nullable pointers
+// Test the  _Nonnull (starbang) syntax for non-nullable pointers
 // This tests Phase 2.5: nullable-to-nonnull conversion errors
 
 // Forward declarations for test functions
 void assert(int);
 
-typedef int*! nonnull_int_ptr;
+typedef int _Nonnull nonnull_int_ptr;
 typedef int* nullable_int_ptr;
 
-void takes_nonnull(int*! p) {
+void takes_nonnull(int _Nonnull p) {
     *p = 42;  // Safe - p is nonnull
 }
 
@@ -25,7 +25,7 @@ void takes_nullable(int* p) {
     }
 }
 
-int*! returns_nonnull(void) {
+int _Nonnull returns_nonnull(void) {
     static int x = 100;
     return &x;
 }
@@ -36,7 +36,7 @@ int* returns_nullable(void) {
 
 void test_basic_syntax(void) {
     int value = 10;
-    int*! nonnull_ptr = &value;  // OK - address-of is always nonnull
+    int _Nonnull nonnull_ptr = &value;  // OK - address-of is always nonnull
     int* nullable_ptr = &value;  // OK
     takes_nonnull(&value);       // OK
     takes_nullable(&value);      // OK
@@ -52,13 +52,13 @@ void test_nullable_to_nonnull(void) {
 }
 
 void test_nonnull_to_nullable(void) {
-    int*! nonnull = returns_nonnull();
+    int _Nonnull nonnull = returns_nonnull();
     takes_nullable(nonnull);  // OK - implicit upcast
 }
 
 void test_assignment(void) {
     int value = 42;
-    int*! nonnull;
+    int _Nonnull nonnull;
     int* nullable = 0;
 
     nonnull = &value;     // OK
@@ -67,8 +67,8 @@ void test_assignment(void) {
 }
 
 void test_function_pointers(void) {
-    void (*_Nonnull fp1)(int*!) = takes_nonnull;  // OK
-    void (*fp2)(int*!) = takes_nonnull;           // OK
+    void (*_Nonnull fp1)(int _Nonnull) = takes_nonnull;  // OK
+    void (*fp2)(int _Nonnull) = takes_nonnull;           // OK
 }
 
 void test_typedef(void) {
@@ -84,12 +84,12 @@ void test_typedef(void) {
 }
 
 void test_return_types(void) {
-    int*! nonnull = returns_nullable();  // expected-error{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nonnull'}}
+    int _Nonnull nonnull = returns_nullable();  // expected-error{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nonnull'}}
     int* nullable = returns_nonnull();   // OK - implicit upcast
 }
 
 // Test that defaults work correctly
-void test_defaults(int* implicitly_nullable, int*! explicitly_nonnull) {
+void test_defaults(int* implicitly_nullable, int _Nonnull explicitly_nonnull) {
     takes_nullable(implicitly_nullable);   // OK
     takes_nonnull(implicitly_nullable);    // expected-error{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nonnull'}}
     takes_nullable(explicitly_nonnull);    // OK - implicit upcast
@@ -98,7 +98,7 @@ void test_defaults(int* implicitly_nullable, int*! explicitly_nonnull) {
 
 // Test multiple levels of indirection work at least syntactically
 void test_multi_level(int** nullable_ptr_to_nullable,
-                     int**! nonnull_ptr_to_nullable) {
+                     int* _Nonnull nonnull_ptr_to_nullable) {
     // Just test that these parse correctly
     // Full multi-level pointer support is Phase 3+
 }
@@ -304,7 +304,7 @@ void test_and_deref_funcall(char* p) {
 // Test: Assigning NULL to nullable is fine, to nonnull should error
 void test_null_assignment(void) {
     int* nullable = 0;   // OK
-    int*! nonnull = 0;   // expected-error{{null passed to a callee that requires a non-null argument}}
+    int _Nonnull nonnull = 0;   // expected-error{{null passed to a callee that requires a non-null argument}}
 }
 
 // Test: Loop condition narrowing
@@ -345,10 +345,10 @@ void test_multiple_and(int* p, int* q, int* r) {
 }
 
 // Test: Ternary operator with nullable/nonnull
-void test_ternary(int* nullable, int*! nonnull, int cond) {
+void test_ternary(int* nullable, int _Nonnull nonnull, int cond) {
     int* result1 = cond ? nullable : nonnull;  // OK - result is nullable
-    int*! result2 = cond ? nonnull : nullable; // expected-error{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nonnull'}}
-    int*! result3 = cond ? nonnull : nonnull;  // OK - both branches nonnull
+    int _Nonnull result2 = cond ? nonnull : nullable; // expected-error{{implicit conversion from nullable pointer 'int * _Nullable' to non-nullable pointer type 'int * _Nonnull'}}
+    int _Nonnull result3 = cond ? nonnull : nonnull;  // OK - both branches nonnull
 }
 
 // Test: Dereference in function argument
@@ -379,7 +379,7 @@ void test_pointer_arithmetic(int* p) {
 // Test: Address-of operator always produces nonnull
 void test_address_of(void) {
     int x = 42;
-    int*! p = &x;  // OK - address-of is always nonnull
+    int _Nonnull p = &x;  // OK - address-of is always nonnull
     takes_nonnull(&x);  // OK
 }
 
@@ -413,7 +413,7 @@ void test_triple_pointers(int*** ppp) {
 }
 
 // Test: Declared nonnull multi-level
-void test_nonnull_outer_ptr(int**! pp) {
+void test_nonnull_outer_ptr(int* _Nonnull pp) {
     *pp = 0;  // OK - pp is nonnull by declaration
 
     if (*pp) {
