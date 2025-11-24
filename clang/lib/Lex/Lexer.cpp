@@ -4109,9 +4109,6 @@ LexStart:
     if (Char == '=') {
       Kind = tok::starequal;
       CurPtr = ConsumeChar(CurPtr, SizeTmp, Result);
-    } else if (Char == '!') {
-      Kind = tok::starbang;
-      CurPtr = ConsumeChar(CurPtr, SizeTmp, Result);
     } else {
       Kind = tok::star;
     }
