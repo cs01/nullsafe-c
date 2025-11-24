@@ -117,10 +117,36 @@ Many standard library functions already have these attributes in GNU libc header
 
 The `clang/nullsafe-headers/` directory contains nullability-annotated standard library headers. These work with any Clang version but shine when combined with this fork's flow analysis.
 
+**Without null-safe headers:**
+```c
+#include <string.h>  // System headers - no nullability info
+
+char* result = strdup(input);  // No warning - strdup can return NULL!
+result[0] = 'x';                // Potential crash if strdup failed
+```
+
+**With null-safe headers:**
+```c
+#include "string.h"  // From clang/nullsafe-headers
+
+char* result = strdup(input);  // strdup declared as returning char* _Nullable
+result[0] = 'x';                // ⚠️  Warning - result might be NULL!
+
+// Fix: check the result
+if (result) {
+    result[0] = 'x';            // ✓ OK - result is non-null here
+}
+```
+
 ### Quick Start
 
+```bash
+# Compile with null-safe headers
+clang -Iclang/nullsafe-headers/include mycode.c
+```
+
+Example code:
 ```c
-// Use null-safe headers
 #include "string.h"
 #include "stdlib.h"
 
@@ -128,7 +154,7 @@ void safe_code(const char* input) {
     if (!input) return;  // Early return for null check
 
     // After the check, strict nullability knows input is non-null
-    size_t len = strlen(input);  // OK
+    size_t len = strlen(input);  // OK - strlen expects non-null
     char* copy = malloc(len + 1);
 
     if (copy) {  // Check malloc result
@@ -136,11 +162,6 @@ void safe_code(const char* input) {
         free(copy);
     }
 }
-```
-
-Compile with:
-```bash
-clang -I/path/to/llvm-project/clang/nullsafe-headers/include mycode.c
 ```
 
 See [`clang/nullsafe-headers/README.md`](clang/nullsafe-headers/README.md) for complete documentation.
