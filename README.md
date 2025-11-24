@@ -1,42 +1,64 @@
-# C! Null-Safe C
+# Clang with Strict Nullability
 
-**cbang** is a drop-in replacement for clang with better null checking, type refinement, and an optional new type `*!` (non-null). Its goal is to fix the 'billion dollar mistake'.
+A C compiler with opt-in strict null safety, bringing TypeScript/Kotlin-style nullable type checking to C through flow-sensitive analysis.
 
-Write `int*!` for non-nullable pointers and `int*` for nullable ones. The compiler catches null-pointer bugs before they crash your program through flow-sensitive type refinement. cbang is 100% compatible with existing C code, making it a drop-in replacement for your existing toolchain.
+**Strict nullability mode** extends Clang's existing `_Nonnull` and `_Nullable` annotations with flow-sensitive type narrowing. All pointers are nullable by default unless explicitly marked `_Nonnull`. The compiler catches null-pointer bugs before they crash your program—all without runtime overhead.
 
-The cbang compiler is a fork of the clang compiler with the addition of null safety checks and the `*!` syntax. This means it has all the power of clang and the same API. It also means IDE integrations for the new `*!` work with the clangd build of cbang.
+This is a fork of Clang that adds flow-sensitive nullability analysis while remaining 100% compatible with existing C code. It has all the power of Clang and the same API, plus IDE support through the enhanced `clangd` binary.
 
-## Roadmap
+## Usage
 
-### Completed
-- [x] `*!` syntax for non-nullable pointers of all types
-- [x] Single-level pointers default to `_Nullable`
-- [x] Nullable → non-nullable conversion errors (enabled by default)
-- [x] Flow-sensitive type narrowing after null checks (e.g., `if (p)` narrows `p` to non-null)
-- [x] **Dereference checking**: Error when dereferencing nullable pointers (`*p` where `p` is `int*`)
-- [x] Type checking through function calls and returns
-- [x] Typedef support for nullability annotations
-- [x] Real-world code compatibility (tested on cJSON, SQLite)
-- [x] IDE tooling (use C!'s `clangd` binary)
-- [x] **Early-exit narrowing** with `return`, `goto`, `break`, `continue`
-- [x] **Function call invalidation**: Conservative by default - all functions assumed to have side effects
-- [x] **Pure function support**: Use `__attribute__((pure))` or `__attribute__((const))` to mark side-effect-free functions
-- [x] **Multi-level pointer narrowing** (`int**`, `int***`, etc.)
-- [x] **Pointer arithmetic narrowing** (`q = p + 1` preserves narrowing)
-- [x] **Standard library nullability annotations** (see `clang/nullsafe-headers/`)
+**Enable strict nullability (on by default):**
+```bash
+clang mycode.c                    # Strict nullability ON, warnings only
+clang -Werror=nullability mycode.c  # Promote warnings to errors
+```
+
+**Disable for legacy code:**
+```bash
+clang -fno-strict-nullability mycode.c  # Pure standard Clang behavior
+```
+
+**Gradual adoption:**
+```c
+// Disable warnings for specific files
+#pragma clang diagnostic ignored "-Wnullability"
+
+// Or per-function
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnullability"
+void legacy_function(int* p) { ... }
+#pragma clang diagnostic pop
+```
+
+## Features
+
+- **Nullable-by-default**: All pointers are `_Nullable` unless marked `_Nonnull`
+- **Flow-sensitive type narrowing**: `if (p)` proves `p` is non-null in that scope
+- **Dereference checking**: Errors when dereferencing nullable pointers
+- **Type checking**: Through function calls, returns, and assignments
+- **Typedef support**: Nullability annotations work with typedefs
+- **Early-exit narrowing**: `return`, `goto`, `break`, `continue` are understood
+- **Function call invalidation**: Conservative by default - assumes functions have side effects
+- **Pure function support**: Use `__attribute__((pure))` or `__attribute__((const))` to preserve narrowing
+- **Multi-level pointer narrowing**: Works with `int**`, `int***`, etc.
+- **Pointer arithmetic narrowing**: `q = p + 1` preserves narrowing from `p`
+- **Standard library annotations**: Nullability-annotated headers (see `clang/nullsafe-headers/`)
+- **Real-world compatibility**: Tested on cJSON, SQLite
+- **IDE integration**: Enhanced `clangd` with nullability diagnostics
 
 ### Future Work
-- [ ] Direct assignment narrowing (`q = p` should narrow `q` if `p` is narrowed)
-- [ ] Bounds safety integration (combine with `-fbounds-safety`)
-- [ ] Interop mode for gradual adoption in existing codebases
+- Direct assignment narrowing (`q = p` should narrow `q` if `p` is narrowed)
+- Bounds safety integration (combine with `-fbounds-safety`)
+- Additional compiler flags for fine-grained control
 
 ## How It Works
 
-cbang implements **flow-sensitive nullability analysis** directly in Clang's semantic analyzer. Unlike languages like Swift, TypeScript, or Kotlin that have flow analysis built into their type systems from the start, C!'s implementation brings this capability to C by layering it onto Clang's traditionally flow-insensitive type system. When you write `if (p)`, the compiler tracks that `p` is non-null within that branch and allows you to use it where a non-nullable pointer is expected—all without runtime overhead.
+This implementation adds **flow-sensitive nullability analysis** directly to Clang's semantic analyzer. Unlike languages like Swift, TypeScript, or Kotlin that have flow analysis built into their type systems from the start, strict nullability brings this capability to C by layering it onto Clang's traditionally flow-insensitive type system. When you write `if (p)`, the compiler tracks that `p` is non-null within that branch and allows you to use it where a non-nullable pointer is expected—all without runtime overhead.
 
 ### Function Call Invalidation
 
-By default, **cbang assumes all function calls have side effects** and conservatively invalidates narrowing:
+By default, **strict nullability assumes all function calls have side effects** and conservatively invalidates narrowing:
 
 ```c
 void some_function(void);
@@ -45,7 +67,7 @@ void example(int* p) {
     if (p) {
         *p = 1;           // OK - p is narrowed to non-null
         some_function();  // Invalidates narrowing
-        *p = 2;           // ERROR - p is nullable again
+        *p = 2;           // Warning: p is nullable again
     }
 }
 ```
@@ -71,11 +93,11 @@ The difference:
 
 Both preserve narrowing since they can't invalidate pointers.
 
-**Good news**: Many standard library functions already have these attributes! The GNU C library's `ctype.h`, `string.h`, and other headers already mark functions like `tolower()`, `strlen()`, etc. as pure/const, so cbang automatically recognizes them without any special configuration.
+**Good news**: Many standard library functions already have these attributes! The GNU C library's `ctype.h`, `string.h`, and other headers already mark functions like `tolower()`, `strlen()`, etc. as pure/const, so strict nullability automatically recognizes them without any special configuration.
 
 ## Null-Safe C Standard Library
 
-The `clang/nullsafe-headers/` directory contains nullability-annotated versions of the C standard library headers (`string.h`, `stdlib.h`, `stdio.h`). These headers work with **any version of Clang**, not just cbang, but provide the best experience when combined with cbang's flow-sensitive analysis.
+The `clang/nullsafe-headers/` directory contains nullability-annotated versions of the C standard library headers (`string.h`, `stdlib.h`, `stdio.h`). These headers work with **any version of Clang**, not just this fork, but provide the best experience when combined with strict nullability's flow-sensitive analysis.
 
 ### Quick Start
 
@@ -87,7 +109,7 @@ The `clang/nullsafe-headers/` directory contains nullability-annotated versions 
 void safe_code(const char* input) {
     if (!input) return;  // Early return for null check
 
-    // After the check, cbang knows input is non-null
+    // After the check, strict nullability knows input is non-null
     size_t len = strlen(input);  // OK
     char* copy = malloc(len + 1);
 
@@ -100,7 +122,7 @@ void safe_code(const char* input) {
 
 Compile with:
 ```bash
-cbang -I/path/to/llvm-project/clang/nullsafe-headers/include mycode.c
+clang -I/path/to/llvm-project/clang/nullsafe-headers/include mycode.c
 ```
 
 See [`clang/nullsafe-headers/README.md`](clang/nullsafe-headers/README.md) for complete documentation.
