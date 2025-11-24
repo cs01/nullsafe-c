@@ -119,24 +119,23 @@ The `clang/nullsafe-headers/` directory contains nullability-annotated standard 
 
 **The difference:** Functions like `malloc`, `strdup`, `getenv` are annotated to return `_Nullable` pointers (can be NULL), while parameters like `strlen`'s input are marked `_Nonnull` (must not be NULL).
 
-**Without null-safe headers:**
+**Without null-safe headers (using system headers):**
 ```c
-#include <string.h>  // System headers - no nullability info
+#include <string.h>  // System headers - no parameter nullability info
 
 void example(const char* input) {
-    char* result = strdup(input);  // No warning about either issue
-    result[0] = 'x';                // Compiles fine, but:
-                                    // - input might be NULL (strdup would crash)
-                                    // - result might be NULL (strdup can fail)
+    char* result = strdup(input);  // No warning - compiler doesn't know strdup needs nonnull
+    result[0] = 'x';                // ⚠️  Warning: result might be NULL (all pointers nullable by default)
 }
 ```
+You get warnings about dereferencing nullable return values, but not about passing NULL to functions.
 
 **With null-safe headers:**
 ```c
-#include "string.h"  // From clang/nullsafe-headers
+#include "string.h"  // From clang/nullsafe-headers - strdup parameter is _Nonnull
 
 void example(const char* input) {
-    char* result = strdup(input);  // ⚠️  Warning: passing nullable pointer to nonnull parameter
+    char* result = strdup(input);  // ⚠️  Warning: passing nullable 'input' to nonnull parameter!
     result[0] = 'x';                // ⚠️  Warning: dereferencing nullable pointer!
 
     // Fix both issues:
@@ -149,6 +148,7 @@ void example(const char* input) {
     }
 }
 ```
+Now you get warnings for BOTH nullable returns AND passing NULL to nonnull parameters.
 
 The headers catch both directions:
 
