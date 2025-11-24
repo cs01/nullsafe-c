@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Null-Safe C Playground</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #252526;
+            --bg-tertiary: #2d2d30;
+            --border-color: #3e3e42;
+            --text-primary: #d4d4d4;
+            --text-secondary: #cccccc;
+            --text-muted: #888;
+            --accent-orange: #ff6b35;
+            --accent-red: #f7931e;
+            --success: #4ec9b0;
+            --warning: #ffb84d;
+            --error: #ff5252;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--accent-orange) 0%, var(--accent-red) 100%);
+            padding: 24px 32px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, transparent 0%, rgba(255,255,255,0.05) 100%);
+            pointer-events: none;
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: -0.8px;
+            margin-bottom: 6px;
+        }
+
+        .header p {
+            color: rgba(255,255,255,0.95);
+            font-size: 15px;
+            font-weight: 400;
+        }
+
+        .controls {
+            padding: 16px 32px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            border: none;
+            padding: 10px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-orange) 0%, var(--accent-red) 100%);
+            color: white;
+            box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+        }
+
+        .btn-primary:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #3a3a3d;
+            border-color: #4e4e52;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .examples-dropdown {
+            position: relative;
+        }
+
+        .examples-select {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+            padding: 10px 16px;
+            font-size: 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 200px;
+        }
+
+        .examples-select:hover {
+            background: #3a3a3d;
+            border-color: #4e4e52;
+        }
+
+        .status {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            display: inline-block;
+            animation: pulse 2s infinite;
+        }
+
+        .status.ready::before {
+            background: var(--success);
+            animation: none;
+        }
+
+        .status.compiling::before {
+            background: var(--warning);
+        }
+
+        .status.error::before {
+            background: var(--error);
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .status.ready { color: var(--success); }
+        .status.compiling { color: var(--warning); }
+        .status.error { color: var(--error); }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .pane {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: flex 0.3s ease;
+        }
+
+        .pane:first-child {
+            flex: 1;
+        }
+
+        .pane:last-child {
+            flex: 1;
+        }
+
+        .pane-header {
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            padding: 12px 20px;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .pane-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .icon-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .icon-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .divider {
+            width: 5px;
+            background: var(--border-color);
+            cursor: col-resize;
+            position: relative;
+            flex-shrink: 0;
+            transition: background 0.2s;
+        }
+
+        .divider:hover {
+            background: var(--accent-orange);
+        }
+
+        .divider::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 3px;
+            height: 40px;
+            background: var(--bg-primary);
+            border-radius: 2px;
+        }
+
+        #editor {
+            flex: 1;
+            padding: 20px;
+            font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.7;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: none;
+            outline: none;
+            resize: none;
+            tab-size: 4;
+            overflow-y: auto;
+        }
+
+        #output {
+            flex: 1;
+            padding: 20px;
+            font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        #output:empty::before {
+            content: 'Compiler output will appear here...';
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .error { color: var(--error); }
+        .warning { color: var(--warning); }
+        .success { color: var(--success); }
+
+        .loading-bar {
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-orange), var(--accent-red));
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            transition: width 0.3s ease;
+            opacity: 0;
+        }
+
+        .loading-bar.active {
+            opacity: 1;
+            animation: loading 2s ease-in-out infinite;
+        }
+
+        @keyframes loading {
+            0% { width: 0%; }
+            50% { width: 70%; }
+            100% { width: 100%; }
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            border: 1px solid var(--border-color);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+            }
+
+            .divider {
+                width: 100%;
+                height: 5px;
+                cursor: row-resize;
+            }
+
+            .header {
+                padding: 16px 20px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .controls {
+                padding: 12px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-bar" id="loadingBar"></div>
+
+    <div class="header">
+        <div class="header-content">
+            <h1>Null-Safe C Playground</h1>
+            <p>Experimental C compiler with strict nullability checking - Try it live in your browser</p>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="compileBtn" class="btn btn-primary" disabled>
+            <span>▶</span> Compile
+        </button>
+
+        <select id="examplesSelect" class="examples-select">
+            <option value="">Load Example...</option>
+            <option value="null-check">Null Check Example</option>
+            <option value="array">Array Safety</option>
+            <option value="function">Function Parameters</option>
+        </select>
+
+        <button id="copyBtn" class="btn btn-secondary">
+            📋 Copy Code
+        </button>
+
+        <button id="clearOutputBtn" class="btn btn-secondary">
+            🗑 Clear Output
+        </button>
+
+        <span id="status" class="status">Initializing compiler...</span>
+    </div>
+
+    <div class="main-container">
+        <div class="pane">
+            <div class="pane-header">
+                <span>Source Code (main.c)</span>
+                <div class="pane-actions">
+                    <button class="icon-btn" title="Keyboard shortcut: Cmd/Ctrl+Enter">⌨️ Ctrl+Enter to compile</button>
+                </div>
+            </div>
+            <textarea id="editor" spellcheck="false" placeholder="Write your C code here..."></textarea>
+        </div>
+
+        <div class="divider" id="divider"></div>
+
+        <div class="pane">
+            <div class="pane-header">
+                <span>Compiler Output</span>
+                <div class="pane-actions">
+                    <span id="outputStats" class="icon-btn" style="cursor: default;"></span>
+                </div>
+            </div>
+            <div id="output"></div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const editor = document.getElementById('editor');
+        const output = document.getElementById('output');
+        const compileBtn = document.getElementById('compileBtn');
+        const status = document.getElementById('status');
+        const examplesSelect = document.getElementById('examplesSelect');
+        const copyBtn = document.getElementById('copyBtn');
+        const clearOutputBtn = document.getElementById('clearOutputBtn');
+        const loadingBar = document.getElementById('loadingBar');
+        const toast = document.getElementById('toast');
+        const outputStats = document.getElementById('outputStats');
+        const divider = document.getElementById('divider');
+
+        const examples = {
+            'null-check': `#include <stdio.h>
+#include <stdlib.h>
+
+// Null Check Example
+int main(void) {
+    // Declaring a nullable pointer
+    int * _Nullable ptr = NULL;
+
+    // ERROR: Dereferencing potentially null pointer
+    *ptr = 42;
+
+    // CORRECT: Check before dereferencing
+    if (ptr != NULL) {
+        *ptr = 42;  // OK
+    }
+
+    return 0;
+}`,
+            'array': `#include <stdio.h>
+#include <stdlib.h>
+
+// Array Safety Example
+int main(void) {
+    // Nullable array pointer
+    int * _Nullable arr = malloc(10 * sizeof(int));
+
+    // ERROR: Using without null check
+    arr[0] = 42;
+
+    // CORRECT: Check first
+    if (arr != NULL) {
+        arr[0] = 42;  // OK
+        free(arr);
+    }
+
+    return 0;
+}`,
+            'function': `#include <stdio.h>
+
+// Function with nullable parameter
+void process(int * _Nullable ptr) {
+    // ERROR: Unsafe dereference
+    int value = *ptr;
+
+    // CORRECT: Check first
+    if (ptr != NULL) {
+        int value = *ptr;  // OK
+        printf("Value: %d\\n", value);
+    }
+}
+
+int main(void) {
+    int x = 42;
+    process(&x);
+    process(NULL);
+    return 0;
+}`
+        };
+
+        const defaultCode = examples['null-check'];
+        editor.value = defaultCode;
+
+        let ClangModule = null;
+        let isCompiling = false;
+        let isDragging = false;
+
+        // Toast notification
+        function showToast(message, duration = 2000) {
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, duration);
+        }
+
+        // Resizable panes
+        divider.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+
+            const container = document.querySelector('.main-container');
+            const containerRect = container.getBoundingClientRect();
+            const offsetX = e.clientX - containerRect.left;
+            const percentage = (offsetX / containerRect.width) * 100;
+
+            if (percentage > 20 && percentage < 80) {
+                const panes = document.querySelectorAll('.pane');
+                panes[0].style.flex = `0 0 ${percentage}%`;
+                panes[1].style.flex = `0 0 ${100 - percentage}%`;
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // Examples dropdown
+        examplesSelect.addEventListener('change', (e) => {
+            const example = e.target.value;
+            if (example && examples[example]) {
+                editor.value = examples[example];
+                showToast('Example loaded!');
+                e.target.value = '';
+            }
+        });
+
+        // Copy button
+        copyBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(editor.value);
+                showToast('Code copied to clipboard!');
+            } catch (err) {
+                showToast('Failed to copy code');
+            }
+        });
+
+        // Clear output button
+        clearOutputBtn.addEventListener('click', () => {
+            output.innerHTML = '';
+            outputStats.textContent = '';
+            showToast('Output cleared');
+        });
+
+        async function initCompiler() {
+            status.textContent = 'Loading compiler (64MB)...';
+            status.className = 'status';
+            loadingBar.classList.add('active');
+
+            try {
+                // Configure Module before loading clang.js
+                window.Module = {
+                    print: function(text) {
+                        console.log('[stdout]', text);
+                    },
+                    printErr: function(text) {
+                        console.log('[stderr]', text);
+                    },
+                    noInitialRun: true,
+                    onRuntimeInitialized: function() {
+                        ClangModule = window.Module;
+                        console.log('Runtime initialized!');
+                        console.log('Module has FS:', !!window.Module.FS);
+                        console.log('All Module keys:', Object.keys(window.Module));
+
+                        status.textContent = 'Ready to compile';
+                        status.className = 'status ready';
+                        compileBtn.disabled = false;
+                        loadingBar.classList.remove('active');
+                        showToast('Compiler loaded successfully!');
+                        console.log('Clang WASM module loaded successfully');
+                    }
+                };
+
+                const script = document.createElement('script');
+                script.src = './clang.js';
+                script.onerror = () => {
+                    status.textContent = 'Failed to load compiler';
+                    status.className = 'status error';
+                    loadingBar.classList.remove('active');
+                    showToast('Failed to load compiler script', 4000);
+                };
+                document.head.appendChild(script);
+
+            } catch (error) {
+                status.textContent = 'Failed to load compiler';
+                status.className = 'status error';
+                loadingBar.classList.remove('active');
+                showToast('Failed to load compiler: ' + error.message, 4000);
+                console.error('Failed to load Clang WASM:', error);
+            }
+        }
+
+        async function compile() {
+            if (isCompiling) return;
+            if (!ClangModule) {
+                output.innerHTML = `<span class="error">Compiler not loaded yet. Please wait...</span>`;
+                return;
+            }
+
+            // Check if Module.FS is available
+            const FS = window.Module?.FS || window.FS;
+            if (!FS) {
+                output.innerHTML = `<span class="error">Compiler filesystem not ready. Please wait...</span>`;
+                console.error('FS not available - Module.FS:', !!window.Module?.FS, 'window.FS:', !!window.FS);
+                return;
+            }
+
+            isCompiling = true;
+            compileBtn.disabled = true;
+            status.textContent = 'Compiling...';
+            status.className = 'status compiling';
+            output.innerHTML = '';
+            outputStats.textContent = '';
+            loadingBar.classList.add('active');
+
+            const startTime = performance.now();
+
+            try {
+                const code = editor.value;
+                const result = await compileCode(code);
+                const duration = (performance.now() - startTime).toFixed(0);
+
+                if (result.stdout || result.stderr) {
+                    output.textContent = result.stderr + result.stdout;
+
+                    const errorCount = (result.stderr.match(/error:/g) || []).length;
+                    const warningCount = (result.stderr.match(/warning:/g) || []).length;
+
+                    let stats = [];
+                    if (errorCount > 0) stats.push(`${errorCount} error${errorCount !== 1 ? 's' : ''}`);
+                    if (warningCount > 0) stats.push(`${warningCount} warning${warningCount !== 1 ? 's' : ''}`);
+                    stats.push(`${duration}ms`);
+
+                    outputStats.textContent = stats.join(' • ');
+                } else {
+                    output.innerHTML = `<span class="success">✓ Compilation successful! No errors or warnings.</span>`;
+                    outputStats.textContent = `✓ Success • ${duration}ms`;
+                }
+
+                status.textContent = 'Ready to compile';
+                status.className = 'status ready';
+            } catch (error) {
+                output.innerHTML = `<span class="error">Compilation failed: ${error.message}</span>`;
+                status.textContent = 'Compilation error';
+                status.className = 'status error';
+                outputStats.textContent = '✗ Failed';
+                console.error('Compilation error:', error);
+            } finally {
+                isCompiling = false;
+                compileBtn.disabled = false;
+                loadingBar.classList.remove('active');
+            }
+        }
+
+        async function compileCode(code) {
+            return new Promise((resolve, reject) => {
+                try {
+                    console.log('Starting compilation, Module available:', !!window.Module);
+                    console.log('Module.FS available:', !!window.Module?.FS);
+                    console.log('Global FS available:', !!window.FS);
+                    console.log('Module keys:', window.Module ? Object.keys(window.Module).slice(0, 30) : 'none');
+
+                    const inputFile = '/input.c';
+
+                    // Try to find FS - it might be global or on Module
+                    const FS = window.Module?.FS || window.FS;
+
+                    if (!FS) {
+                        throw new Error('FS is not available - Module.FS: ' + !!window.Module?.FS + ', window.FS: ' + !!window.FS);
+                    }
+
+                    FS.writeFile(inputFile, code);
+
+                    let stdout = '';
+                    let stderr = '';
+
+                    const oldPrint = Module.print;
+                    const oldPrintErr = Module.printErr;
+
+                    Module.print = (text) => {
+                        stdout += text + '\n';
+                    };
+                    Module.printErr = (text) => {
+                        stderr += text + '\n';
+                    };
+
+                    try {
+                        Module.callMain([
+                            '-fsyntax-only',
+                            '-Xclang', '-verify',
+                            inputFile
+                        ]);
+                    } catch (e) {
+                        // Clang may throw on errors, that's okay
+                        console.log('Clang execution completed (may have thrown):', e);
+                    }
+
+                    Module.print = oldPrint;
+                    Module.printErr = oldPrintErr;
+
+                    try {
+                        FS.unlink(inputFile);
+                    } catch (e) {
+                        // File might not exist
+                    }
+
+                    resolve({ stdout, stderr });
+                } catch (error) {
+                    console.error('compileCode error:', error);
+                    reject(error);
+                }
+            });
+        }
+
+        compileBtn.addEventListener('click', compile);
+
+        // Auto-compile on load
+        window.addEventListener('load', () => {
+            initCompiler();
+        });
+
+        // Keyboard shortcut: Cmd/Ctrl + Enter to compile
+        editor.addEventListener('keydown', (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                e.preventDefault();
+                compile();
+            }
+        });
+
+        // Tab key handling
+        editor.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = editor.selectionStart;
+                const end = editor.selectionEnd;
+                const value = editor.value;
+                editor.value = value.substring(0, start) + '    ' + value.substring(end);
+                editor.selectionStart = editor.selectionEnd = start + 4;
+            }
+        });
+    </script>
+</body>
+</html>
