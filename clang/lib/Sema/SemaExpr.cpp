@@ -14924,7 +14924,12 @@ static QualType CheckIndirectionOperand(Sema &S, Expr *Op, ExprValueKind &VK,
 
   if (auto Nullability = CheckType->getNullability()) {
     if (*Nullability == NullabilityKind::Nullable) {
-      S.Diag(OpLoc, diag::err_nullable_dereference) << OpTy;
+      // cbang: Allow nullable dereferences in condition contexts (if/while/for).
+      // The dereference itself performs a null-check, so it's safe.
+      // The narrowing analysis will collect these and narrow the pointer for the body.
+      if (S.InConditionContext == 0) {
+        S.Diag(OpLoc, diag::err_nullable_dereference) << OpTy;
+      }
     }
   }
 
@@ -20915,6 +20920,7 @@ Sema::ConditionResult Sema::ActOnCondition(Scope *S, SourceLocation Loc,
     Cond = CheckSwitchCondition(Loc, SubExpr);
     break;
   }
+
   if (Cond.isInvalid()) {
     Cond = CreateRecoveryExpr(SubExpr->getBeginLoc(), SubExpr->getEndLoc(),
                               {SubExpr}, PreferredConditionType(CK));

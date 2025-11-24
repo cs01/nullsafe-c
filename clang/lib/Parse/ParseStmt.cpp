@@ -1477,11 +1477,14 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
 
   if (!IsConsteval) {
 
+    // cbang: Mark that we're parsing a condition to allow nullable dereferences
+    ++Actions.InConditionContext;
     if (ParseParenExprOrCondition(&InitStmt, Cond, IfLoc,
                                   IsConstexpr ? Sema::ConditionKind::ConstexprIf
                                               : Sema::ConditionKind::Boolean,
                                   LParen, RParen))
       return StmtError();
+    --Actions.InConditionContext;
 
     if (IsConstexpr)
       ConstexprCondition = Cond.getKnownValue();
@@ -1831,9 +1834,12 @@ StmtResult Parser::ParseWhileStatement(SourceLocation *TrailingElseLoc,
   Sema::ConditionResult Cond;
   SourceLocation LParen;
   SourceLocation RParen;
+  // cbang: Mark that we're parsing a condition to allow nullable dereferences
+  ++Actions.InConditionContext;
   if (ParseParenExprOrCondition(nullptr, Cond, WhileLoc,
                                 Sema::ConditionKind::Boolean, LParen, RParen))
     return StmtError();
+  --Actions.InConditionContext;
 
   // OpenACC Restricts a while-loop inside of certain construct/clause
   // combinations, so diagnose that here in OpenACC mode.
@@ -2252,7 +2258,10 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc,
         // We permit 'continue' and 'break' in the condition of a for loop.
         getCurScope()->AddFlags(Scope::BreakScope | Scope::ContinueScope);
 
+        // cbang: Mark that we're parsing a condition to allow nullable dereferences
+        ++Actions.InConditionContext;
         ExprResult SecondExpr = ParseExpression();
+        --Actions.InConditionContext;
         if (SecondExpr.isInvalid())
           SecondPart = Sema::ConditionError();
         else

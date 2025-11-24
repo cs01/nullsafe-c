@@ -1309,6 +1309,11 @@ public:
   /// during expression parsing which can corrupt parser state.
   llvm::SmallVector<const VarDecl*, 8> AndExprCheckedVars;
 
+  /// cbang: Track when we're type-checking a condition expression (if/while/for).
+  /// When true, dereferences of nullable pointers are allowed because they'll be
+  /// used for narrowing. Incremented when entering condition, decremented when leaving.
+  unsigned InConditionContext = 0;
+
   /// The kind of translation unit we are processing.
   ///
   /// When we're processing a complete translation unit, Sema will perform

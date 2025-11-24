@@ -474,3 +474,25 @@ void test_while_and_narrowing(const unsigned char* input_pointer,
         }
     }
 }
+
+// Test: dereference in while condition (condition context)
+void test_while_deref_condition(const char *ptr) {
+    while (*ptr != '\0') {  // OK - dereference allowed in condition
+        ptr++;
+    }
+}
+
+// Test: dereference in for condition (condition context)
+void test_for_deref_condition(const char *input) {
+    const char *ptr;
+    for (ptr = input; *ptr != '\0'; ptr++) {  // OK - dereference allowed in condition
+        // loop body
+    }
+}
+
+// Test: dereference in if condition (condition context)
+void test_if_deref_condition(const char *str) {
+    if (*str == 'a') {  // OK - dereference allowed in condition
+        // then branch
+    }
+}
