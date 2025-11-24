@@ -593,3 +593,37 @@ void test_stringify(int * _Nonnull p) {
     const char *name = STRINGIFY(p);  // OK - just creates a string
     *p = 42;  // OK - p is still nonnull
 }
+
+// Test: Atomic pointers should get nullability on inner type
+// This tests that _Atomic(T*) becomes _Atomic(T* _Nullable), not _Atomic(T*) _Nullable
+void test_atomic_pointer(void) {
+    _Atomic(int*) atomic_ptr = 0;  // Should be OK - nullable by default
+
+    // Test assignment to atomic pointer
+    int x = 42;
+    atomic_ptr = &x;  // OK
+    atomic_ptr = 0;   // OK - nullable
+}
+
+void test_atomic_nonnull(void) {
+    _Atomic(int* _Nonnull) atomic_nonnull;
+    int x = 42;
+    atomic_nonnull = &x;  // OK
+    // TODO: This should error but atomic assignment checking may not be implemented yet
+    // atomic_nonnull = 0;   // Should error: null passed to nonnull
+}
+
+// Test: Volatile pointers with nullability
+void test_volatile_nullable_to_nonnull(void) {
+    volatile void * src = 0;  // Nullable by default
+    volatile void * _Nonnull dst;
+    dst = src;  // expected-error{{implicit conversion from nullable pointer 'volatile void * _Nullable' to non-nullable pointer type 'volatile void * _Nonnull'}}
+}
+
+void test_volatile_with_check(void) {
+    volatile void * src = 0;  // Nullable by default
+    if (src) {
+        volatile void * _Nonnull dst = src;  // OK - narrowed
+    }
+}
+
