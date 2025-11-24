@@ -1,10 +1,10 @@
 # Clang with Strict Nullability
 
-A C compiler with opt-in strict null safety, bringing TypeScript/Kotlin-style nullable type checking to C through flow-sensitive analysis.
+Bringing TypeScript/Kotlin-style null safety to C with flow-sensitive type narrowing.
 
-**Strict nullability mode** extends Clang's existing `_Nonnull` and `_Nullable` annotations with flow-sensitive type narrowing. All pointers are nullable by default unless explicitly marked `_Nonnull`. The compiler catches null-pointer bugs before they crash your program—all without runtime overhead.
+**Strict nullability** extends Clang's existing `_Nonnull` and `_Nullable` annotations with intelligent flow analysis. When you write `if (p)`, the compiler knows `p` is non-null in that branch. All pointers are nullable by default unless explicitly marked `_Nonnull`. Catch null-pointer bugs at compile time—with zero runtime overhead.
 
-This is a fork of Clang that adds flow-sensitive nullability analysis while remaining 100% compatible with existing C code. It has all the power of Clang and the same API, plus IDE support through the enhanced `clangd` binary.
+This fork adds flow-sensitive nullability analysis to Clang while remaining 100% compatible with standard C. It includes all of Clang's features plus enhanced nullability checking in both the compiler and the `clangd` language server.
 
 ## Usage
 
@@ -34,31 +34,28 @@ void legacy_function(int* p) { ... }
 ## Features
 
 - **Nullable-by-default**: All pointers are `_Nullable` unless marked `_Nonnull`
-- **Flow-sensitive type narrowing**: `if (p)` proves `p` is non-null in that scope
-- **Dereference checking**: Errors when dereferencing nullable pointers
+- **Flow-sensitive narrowing**: `if (p)` proves `p` is non-null in that scope
+- **Smart invalidation**: Assumes functions have side effects; use `__attribute__((pure))` or `__attribute__((const))` to preserve narrowing
+- **Early-exit patterns**: Understands `return`, `goto`, `break`, `continue`
+- **Multi-level pointers**: Works with `int**`, `int***`, etc.
+- **Pointer arithmetic**: `q = p + 1` preserves narrowing from `p`
 - **Type checking**: Through function calls, returns, and assignments
-- **Typedef support**: Nullability annotations work with typedefs
-- **Early-exit narrowing**: `return`, `goto`, `break`, `continue` are understood
-- **Function call invalidation**: Conservative by default - assumes functions have side effects
-- **Pure function support**: Use `__attribute__((pure))` or `__attribute__((const))` to preserve narrowing
-- **Multi-level pointer narrowing**: Works with `int**`, `int***`, etc.
-- **Pointer arithmetic narrowing**: `q = p + 1` preserves narrowing from `p`
-- **Standard library annotations**: Nullability-annotated headers (see `clang/nullsafe-headers/`)
-- **Real-world compatibility**: Tested on cJSON, SQLite
-- **IDE integration**: Enhanced `clangd` with nullability diagnostics
+- **Typedef support**: Nullability annotations work seamlessly with typedefs
+- **Null-safe headers**: Annotated C standard library in `clang/nullsafe-headers/`
+- **IDE integration**: Enhanced `clangd` with real-time nullability diagnostics
+- **Real-world tested**: Validated on cJSON, SQLite
 
 ### Future Work
 - Direct assignment narrowing (`q = p` should narrow `q` if `p` is narrowed)
 - Bounds safety integration (combine with `-fbounds-safety`)
-- Additional compiler flags for fine-grained control
 
 ## How It Works
 
-This implementation adds **flow-sensitive nullability analysis** directly to Clang's semantic analyzer. Unlike languages like Swift, TypeScript, or Kotlin that have flow analysis built into their type systems from the start, strict nullability brings this capability to C by layering it onto Clang's traditionally flow-insensitive type system. When you write `if (p)`, the compiler tracks that `p` is non-null within that branch and allows you to use it where a non-nullable pointer is expected—all without runtime overhead.
+Strict nullability adds **flow-sensitive analysis** to Clang's semantic analyzer. When you write `if (p)`, the compiler tracks that `p` is non-null within that branch. Unlike Swift, TypeScript, or Kotlin where this is built into the language, we layer it onto C's type system—giving you modern null safety while keeping C's simplicity.
 
 ### Function Call Invalidation
 
-By default, **strict nullability assumes all function calls have side effects** and conservatively invalidates narrowing:
+By default, function calls invalidate narrowing because they may have side effects:
 
 ```c
 void some_function(void);
@@ -72,9 +69,11 @@ void example(int* p) {
 }
 ```
 
-This is conservative but safe - functions can modify global state, escaped pointers, or have other side effects.
+This is conservative but safe—functions can modify global state or escaped pointers.
 
-**Pure Functions**: Mark side-effect-free functions with `__attribute__((pure))` or `__attribute__((const))` to preserve narrowing:
+**Preserve narrowing with pure functions:**
+
+Mark side-effect-free functions with `__attribute__((pure))` or `__attribute__((const))`:
 
 ```c
 int tolower(int c) __attribute__((const));  // No side effects
@@ -88,16 +87,14 @@ void example(char* p) {
 ```
 
 The difference:
-- `__attribute__((const))`: Function only uses its arguments (e.g., `tolower`, `abs`)
-- `__attribute__((pure))`: Function may read global state but doesn't modify it (e.g., `strlen`)
+- `__attribute__((const))`: Only uses its arguments (e.g., `tolower`, `abs`)
+- `__attribute__((pure))`: May read globals but doesn't modify anything (e.g., `strlen`)
 
-Both preserve narrowing since they can't invalidate pointers.
-
-**Good news**: Many standard library functions already have these attributes! The GNU C library's `ctype.h`, `string.h`, and other headers already mark functions like `tolower()`, `strlen()`, etc. as pure/const, so strict nullability automatically recognizes them without any special configuration.
+Many standard library functions already have these attributes in GNU libc headers, so strict nullability automatically recognizes them.
 
 ## Null-Safe C Standard Library
 
-The `clang/nullsafe-headers/` directory contains nullability-annotated versions of the C standard library headers (`string.h`, `stdlib.h`, `stdio.h`). These headers work with **any version of Clang**, not just this fork, but provide the best experience when combined with strict nullability's flow-sensitive analysis.
+The `clang/nullsafe-headers/` directory contains nullability-annotated standard library headers. These work with any Clang version but shine when combined with this fork's flow analysis.
 
 ### Quick Start
 
