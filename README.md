@@ -115,26 +115,42 @@ Many standard library functions already have these attributes in GNU libc header
 
 ## Null-Safe C Standard Library
 
-The `clang/nullsafe-headers/` directory contains nullability-annotated standard library headers. These work with any Clang version but shine when combined with this fork's flow analysis.
+The `clang/nullsafe-headers/` directory contains nullability-annotated standard library headers. These headers tell the compiler which functions can return NULL and which parameters can be NULL—information missing from system headers.
+
+**The difference:** Functions like `malloc`, `strdup`, `getenv` are annotated to return `_Nullable` pointers (can be NULL), while parameters like `strlen`'s input are marked `_Nonnull` (must not be NULL).
 
 **Without null-safe headers:**
 ```c
 #include <string.h>  // System headers - no nullability info
 
-char* result = strdup(input);  // No warning - strdup can return NULL!
-result[0] = 'x';                // Potential crash if strdup failed
+char* result = strdup(input);  // No warning - compiler doesn't know strdup can return NULL
+result[0] = 'x';                // Compiles fine, crashes at runtime if strdup failed
 ```
 
 **With null-safe headers:**
 ```c
-#include "string.h"  // From clang/nullsafe-headers
+#include "string.h"  // From clang/nullsafe-headers - strdup returns char* _Nullable
 
-char* result = strdup(input);  // strdup declared as returning char* _Nullable
-result[0] = 'x';                // ⚠️  Warning - result might be NULL!
+char* result = strdup(input);  // Compiler knows strdup can return NULL
+result[0] = 'x';                // ⚠️  Warning: dereferencing nullable pointer!
 
 // Fix: check the result
 if (result) {
-    result[0] = 'x';            // ✓ OK - result is non-null here
+    result[0] = 'x';            // ✓ OK - flow analysis knows result is non-null here
+    free(result);
+}
+```
+
+The headers also catch when you pass NULL to functions that don't accept it:
+
+```c
+#include "string.h"
+
+char* str = NULL;
+strlen(str);        // ⚠️  Warning: strlen expects non-null argument!
+
+if (str) {
+    strlen(str);    // ✓ OK - str is non-null here
 }
 ```
 
@@ -157,7 +173,7 @@ void safe_code(const char* input) {
     size_t len = strlen(input);  // OK - strlen expects non-null
     char* copy = malloc(len + 1);
 
-    if (copy) {  // Check malloc result
+    if (copy) {  // Check malloc result (returns _Nullable)
         strcpy(copy, input);  // OK - both non-null
         free(copy);
     }
