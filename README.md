@@ -4,6 +4,21 @@ Bringing TypeScript/Kotlin-style null safety to C with flow-sensitive type narro
 
 **Strict nullability** extends Clang's existing `_Nonnull` and `_Nullable` annotations with intelligent flow analysis. When you write `if (p)`, the compiler knows `p` is non-null in that branch. All pointers are nullable by default unless explicitly marked `_Nonnull`. Catch null-pointer bugs at compile time—with zero runtime overhead.
 
+```c
+void process(int* data) {
+    if (data) {
+        *data = 42;        // ✓ OK - strict nullability knows data is non-null here
+    }
+}
+
+void unsafe(int* data) {
+    *data = 42;            // ⚠️  Warning - data might be null!
+}
+```
+
+**Standard Clang/GCC**: Both functions compile without warnings.
+**This fork**: The `unsafe` function warns you about the potential null dereference.
+
 This fork adds flow-sensitive nullability analysis to Clang while remaining 100% compatible with standard C. It includes all of Clang's features plus enhanced nullability checking in both the compiler and the `clangd` language server.
 
 **By default, strict nullability is enabled and issues warnings.** You can promote warnings to errors with `-Werror=nullability`, or disable the feature entirely with `-fno-strict-nullability`.
