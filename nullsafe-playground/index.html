@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Null-Safe Clang Playground</title>
+
+    <!-- Monaco Editor from CDN (cached by browser) -->
+    <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/editor/editor.main.min.css">
+
     <style>
         * {
             margin: 0;
@@ -323,31 +327,18 @@
             border-radius: 2px;
         }
 
+        #editor-wrapper {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
         #editor {
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
-            padding: 20px;
-            font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
-            font-size: 14px;
-            line-height: 1.5;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            border: none;
-            outline: none;
-            resize: none;
-            tab-size: 4;
-            overflow-y: auto;
-            caret-color: white;
-            z-index: 2;
-        }
-
-        #editor-wrapper {
-            flex: 1;
-            position: relative;
-            overflow: hidden;
         }
 
         #output {
@@ -555,7 +546,7 @@
                 </div>
             </div>
             <div id="editor-wrapper">
-                <textarea id="editor" spellcheck="false" placeholder="Write your C code here..."></textarea>
+                <div id="editor"></div>
             </div>
         </div>
 
@@ -581,8 +572,15 @@
 
     <div class="toast" id="toast"></div>
 
+    <!-- Load Monaco Editor from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
     <script>
-        const editor = document.getElementById('editor');
+        // Configure Monaco loader
+        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+    </script>
+
+    <script>
+        const editorElement = document.getElementById('editor');
         const outputNullsafe = document.getElementById('output-nullsafe');
         const outputMainline = document.getElementById('output-mainline');
         const compileBtn = document.getElementById('compileBtn');
@@ -593,6 +591,8 @@
         const toast = document.getElementById('toast');
         const divider = document.getElementById('divider');
         const outputDivider = document.getElementById('outputDivider');
+
+        let editor = null; // Monaco editor instance
 
         const examples = {
             'null-check': `void process(int* data) {
@@ -631,13 +631,55 @@ void caller(void) {
         };
 
         const defaultCode = examples['null-check'];
-        editor.value = defaultCode;
+
+        // Monaco editor will be initialized async
+        function initMonaco() {
+            return new Promise((resolve) => {
+                require(['vs/editor/editor.main'], function() {
+                    editor = monaco.editor.create(editorElement, {
+                        value: defaultCode,
+                        language: 'c',
+                        theme: 'vs-dark',
+                        automaticLayout: true,
+                        minimap: { enabled: false },
+                        fontSize: 14,
+                        lineNumbers: 'on',
+                        scrollBeyondLastLine: false,
+                        wordWrap: 'off',
+                        tabSize: 4
+                    });
+
+                    // Add Ctrl+Enter shortcut
+                    editor.addAction({
+                        id: 'compile-code',
+                        label: 'Compile Code',
+                        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
+                        run: function() {
+                            compile();
+                        }
+                    });
+
+                    resolve();
+                });
+            });
+        }
+
+        // Helper to get/set editor content
+        function getEditorValue() {
+            return editor ? editor.getValue() : '';
+        }
+
+        function setEditorValue(value) {
+            if (editor) {
+                editor.setValue(value);
+            }
+        }
 
         let clangVersion = '';
         let isCompiling = false;
         let isDragging = false;
-        let scriptUrl = null;  // URL for worker to load clang.js
-        let wasmBinary = null;  // Pre-loaded WASM binary to share with workers
+        let scriptUrl = null;
+        let wasmBinary = null;
 
         // Toast notification
         function showToast(message, duration = 2000) {
@@ -686,16 +728,15 @@ void caller(void) {
         examplesSelect.addEventListener('change', (e) => {
             const example = e.target.value;
             if (example && examples[example]) {
-                editor.value = examples[example];
+                setEditorValue(examples[example]);
                 showToast('Example loaded!');
-                // Don't reset - keep the selection showing
             }
         });
 
         // Share button - encode code in URL
         shareBtn.addEventListener('click', async () => {
             try {
-                const code = editor.value;
+                const code = getEditorValue();
                 const encoded = btoa(unescape(encodeURIComponent(code)));
                 const url = new URL(window.location.href.split('?')[0]);
                 url.searchParams.set('code', encoded);
@@ -715,7 +756,7 @@ void caller(void) {
             if (encodedCode) {
                 try {
                     const code = decodeURIComponent(escape(atob(encodedCode)));
-                    editor.value = code;
+                    setEditorValue(code);
                     showToast('Code loaded from URL!');
                 } catch (err) {
                     console.error('Failed to decode URL code:', err);
@@ -792,7 +833,7 @@ void caller(void) {
             const startTime = performance.now();
 
             try {
-                const code = editor.value;
+                const code = getEditorValue();
 
                 // Compile both versions in parallel
                 const [nullsafeResult, mainlineResult] = await Promise.all([
@@ -911,29 +952,10 @@ void caller(void) {
         compileBtn.addEventListener('click', compile);
 
         // Auto-compile on load
-        window.addEventListener('load', () => {
-            loadCodeFromURL();  // Load code from URL if present
+        window.addEventListener('load', async () => {
+            await initMonaco();  // Initialize Monaco editor first
+            loadCodeFromURL();   // Load code from URL if present
             initCompiler();
-        });
-
-        // Keyboard shortcut: Cmd/Ctrl + Enter to compile
-        editor.addEventListener('keydown', (e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                e.preventDefault();
-                compile();
-            }
-        });
-
-        // Tab key handling
-        editor.addEventListener('keydown', (e) => {
-            if (e.key === 'Tab') {
-                e.preventDefault();
-                const start = editor.selectionStart;
-                const end = editor.selectionEnd;
-                const value = editor.value;
-                editor.value = value.substring(0, start) + '    ' + value.substring(end);
-                editor.selectionStart = editor.selectionEnd = start + 4;
-            }
         });
     </script>
 </body>
