@@ -1,72 +1,48 @@
-# Null-Safe Clang: An experimental C/C++ compiler
+# Nullsafe C: An experimental C/C++ compiler
 
 [![Test Null-Safety](https://github.com/cs01/llvm-project/actions/workflows/test-null-safety.yml/badge.svg)](https://github.com/cs01/llvm-project/actions/workflows/test-null-safety.yml)
 
-An experimental Clang fork that adds flow-sensitive null safety to C and C++, inspired by modern languages like TypeScript, Kotlin, and Rust.
+Nullsafe C adds NULL checks to catch errors at compile-time, not runtime. It is 100% compatible with existing C codebases and can be used incrementally to identify safety issues at compile-time.
+
+You can annotate your code with `_Nonnull` to presere narrowing.
 
 **Try it online:** [Interactive Playground](https://cs01.github.io/llvm-project/) - See null-safety warnings in real-time in your browser!
 
-## What This Adds
-
-This compiler adds two key features to prevent null pointer crashes:
-
-1. Nullable-by-default pointers - All pointers are assumed nullable unless explicitly marked `_Nonnull`
-2. Type narrowing - The compiler tracks when you've null-checked a pointer and knows it's safe to use
-
-In standard C/C++, pointers have no nullability information and the compiler can't tell if a pointer might be null. This compiler treats all unmarked pointers as nullable by default and uses flow-sensitive analysis to track null checks. When you write `if (p)`, the type system understands `p` is non-null in that branch, just like TypeScript, Kotlin, and Rust. This catches null pointer dereferences at compile time instead of crashing at runtime.
+It does this by making two changes:
+1. All pointers are nullable by default, unless explicitly marked `_Nonnull`. Clang already allows the code to be annotated with `_Nullable` and `_Nonnull`, but this compiler treats all unmarked pointers as nullable by default.
+2. The compiler tracks when you've null-checked a pointer and knows it's safe to use. When you write `if (p)`, the type system understands `p` is non-null in that branch.
 
 ## Example
 
 ```c
-void process(int* data) {
-    if (data) {
-        *data = 42;        // ✓ OK - strict nullability knows data is non-null here
-    }
+void unsafe(int *data) {
+  *data = 42; // warning - data might be null!
 }
 
-void unsafe(int* data) {
-    *data = 42;            // ⚠️  Warning - data might be null!
+void safe(int *data) {
+  if (data) {
+    *data = 42; // OK - data is non-null here
+  }
 }
+
+void safe_typed(int *_Nonnull data) {
+  *data = 42; // OK - data is known to be non-null by the compiler
+}
+
 ```
-
-Standard Clang/GCC: Both functions compile without warnings.
-This fork: The `unsafe` function warns you about the potential null dereference.
-
-This experimental fork of Clang adds flow-sensitive nullability analysis while remaining 100% compatible with standard C. It includes all of Clang's features plus enhanced nullability checking in both the compiler and the `clangd` language server.
-
-By default, strict nullability is enabled and issues warnings. You can promote warnings to errors with `-Werror=nullability`, or disable the feature entirely with `-fno-strict-nullability`.
+Try it out in the [Interactive Playground](https://cs01.github.io/llvm-project/).
 
 ## Installation
 
-### Quick Install (Linux/macOS)
-
-Download and extract the latest release for your platform:
-
 ```bash
-# Auto-detect your platform and install
 curl -fsSL https://raw.githubusercontent.com/cs01/llvm-project/null-safe-c-dev/install.sh | sh
-
-# Or manually download:
-# Linux x86_64:
-curl -L https://github.com/cs01/llvm-project/releases/latest/download/clang-nullsafe-linux-x86_64.tar.gz | tar xz
-
-# macOS (Intel/Apple Silicon):
-curl -L https://github.com/cs01/llvm-project/releases/latest/download/clang-nullsafe-macos-universal.tar.gz | tar xz
-
-# Add to PATH
-export PATH="$PWD/bin:$PATH"
-clang --version
 ```
+
+Or download manually from [releases](https://github.com/cs01/llvm-project/releases/latest).
 
 ### Windows
 
-Download the Windows release:
-```bash
-curl -L https://github.com/cs01/llvm-project/releases/latest/download/clang-nullsafe-windows-x86_64.tar.gz -o clang-nullsafe.tar.gz
-tar -xzf clang-nullsafe.tar.gz
-# Add bin\ directory to your PATH
-clang --version
-```
+Download and extract from [releases](https://github.com/cs01/llvm-project/releases/latest), then add the `bin` directory to your PATH.
 
 ### What's Included
 
@@ -95,12 +71,9 @@ require('lspconfig').clangd.setup({
 
 This gives you real-time null-safety warnings as you type!
 
+## Memory Safety
 
-## Memory Safety in General
-
-Null pointer dereferences are just one category of memory safety bugs. Here's how different approaches compare:
-
-### What Gets Fixed
+Do not that this is not a comprehensive solution, since Null pointer dereferences are just one category of memory safety bugs.
 
 | Safety Issue            | Standard C | **Null-Safe Clang** (null checking) |
 |-------------------------|------------|:-----------------------------------:|
@@ -110,6 +83,7 @@ Null pointer dereferences are just one category of memory safety bugs. Here's ho
 | Double-free             | ❌ Unsafe  | ❌ Unsafe                            |
 | Uninitialized memory    | ❌ Unsafe  | ❌ Unsafe                            |
 
+Although this doesn't fix all memory safety issues, it catches Null pointer dereferences for free.
 
 ### Why you still might want to try this
 
@@ -125,22 +99,14 @@ While Null-Safe Clang doesn't solve all memory safety issues, null pointer deref
 
 Basic usage (warnings enabled by default):
 ```bash
-clang mycode.c                          # Warnings for nullable dereferences
-clang -Werror=nullability mycode.c      # Treat nullability issues as errors
-clang -fno-strict-nullability mycode.c  # Turn off nullability checking
+# Warnings for nullable dereferences
+clang mycode.c
+# Treat nullability issues as errors
+clang -Werror=nullability mycode.c
+# Turn off nullability checking
+clang -fno-strict-nullability mycode.c
 ```
 
-Gradual adoption (per-file or per-function):
-```c
-// Disable warnings for specific files
-#pragma clang diagnostic ignored "-Wnullability"
-
-// Or per-function
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wnullability"
-void legacy_function(int* p) { ... }
-#pragma clang diagnostic pop
-```
 
 ## Features
 
@@ -154,70 +120,6 @@ void legacy_function(int* p) { ... }
 - Null-safe headers: Annotated C standard library in `clang/nullsafe-headers/`
 - IDE integration: `clangd` built from this fork has the same logic and warnings as clang
 
-## How It Works
-
-Strict nullability adds flow-sensitive analysis to Clang's semantic analyzer. When you write `if (p)`, the compiler tracks that `p` is non-null within that branch—just like TypeScript, Swift, or Kotlin do. The difference is we add this to C without changing the language itself.
-
-### Function Call Invalidation
-
-By default, function calls invalidate narrowing because they may have side effects:
-
-```c
-void some_function(void);
-
-void example(int* p) {
-    if (p) {
-        *p = 1;           // OK - p is narrowed to non-null
-        some_function();  // Invalidates narrowing
-        *p = 2;           // Warning: p is nullable again
-    }
-}
-```
-
-This is conservative but safe—functions can modify global state or escaped pointers.
-
-Preserve narrowing with pure functions:
-
-Mark side-effect-free functions with `__attribute__((pure))` or `__attribute__((const))`:
-
-```c
-int tolower(int c) __attribute__((const));  // No side effects
-
-void example(char* p) {
-    if (p) {
-        tolower(*p);  // Pure function - doesn't invalidate
-        *p = 'x';     // OK - p is still narrowed
-    }
-}
-```
-
-The difference:
-- `__attribute__((const))`: Only uses its arguments (e.g., `tolower`, `abs`)
-- `__attribute__((pure))`: May read globals but doesn't modify anything (e.g., `strlen`)
-
-Many standard library functions already have these attributes in GNU libc headers, so strict nullability automatically recognizes them.
-
 ## Null-Safe C Standard Library
 
-Nullability-annotated headers for `string.h`, `stdlib.h`, and `stdio.h` are available in `clang/nullsafe-headers/`. These tell the compiler which functions return nullable pointers and which parameters must be non-null.
-
-```bash
-# Compile with null-safe headers
-clang -Iclang/nullsafe-headers/include mycode.c
-```
-
-```c
-#include "string.h"
-#include "stdlib.h"
-
-void example(const char* input) {
-    if (!input) return;
-    char* copy = malloc(strlen(input) + 1);  // malloc returns _Nullable
-    if (copy) {
-        strcpy(copy, input);  // Both parameters narrowed to non-null
-        free(copy);
-    }
-}
-```
-
-See [`clang/nullsafe-headers/README.md`](clang/nullsafe-headers/README.md) for details.
+Nullability-annotated headers for `string.h`, `stdlib.h`, and `stdio.h` are available in `clang/nullsafe-headers/`. See [`clang/nullsafe-headers/README.md`](clang/nullsafe-headers/README.md) for details.
