@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - null-safe-c-dev
-    tags:
-      - 'v*'
   workflow_dispatch:
 
 jobs:
@@ -66,42 +64,6 @@ jobs:
           name: clang-nullsafe-linux-x86_64
           path: install/clang-nullsafe-linux-x86_64.tar.gz
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: install/clang-nullsafe-linux-x86_64.tar.gz
-          body: |
-            ## Null-Safe Clang Binary Release
-
-            This release contains the Null-Safe Clang compiler and clangd language server for Linux x86_64.
-
-            ### What's included:
-            - `clang` - The Null-Safe C compiler
-            - `clangd` - Language server for IDE integration (VSCode, vim, etc.)
-
-            ### Installation:
-            ```bash
-            tar -xzf clang-nullsafe-linux-x86_64.tar.gz
-            export PATH=$PWD/bin:$PATH
-            clang --version
-            ```
-
-            ### Usage:
-            ```bash
-            # Compile with null-safety warnings (default)
-            clang mycode.c
-
-            # Promote warnings to errors
-            clang -Werror=nullability mycode.c
-
-            # Disable null-safety checking
-            clang -fno-strict-nullability mycode.c
-            ```
-
-            See the [README](https://github.com/cs01/llvm-project/blob/null-safe-c-dev/README.md) for full documentation.
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   build-macos:
     runs-on: macos-latest
 
@@ -158,30 +120,6 @@ jobs:
           name: clang-nullsafe-macos-universal
           path: install/clang-nullsafe-macos-universal.tar.gz
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: install/clang-nullsafe-macos-universal.tar.gz
-          body: |
-            ## Null-Safe Clang Binary Release (macOS)
-
-            This release contains the Null-Safe Clang compiler and clangd language server for macOS (Intel and Apple Silicon).
-
-            ### What's included:
-            - `clang` - The Null-Safe C compiler
-            - `clangd` - Language server for IDE integration (VSCode, vim, etc.)
-
-            ### Installation:
-            ```bash
-            tar -xzf clang-nullsafe-macos-universal.tar.gz
-            export PATH=$PWD/bin:$PATH
-            clang --version
-            ```
-
-            See the [README](https://github.com/cs01/llvm-project/blob/null-safe-c-dev/README.md) for usage instructions.
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   build-windows:
     runs-on: windows-latest
 
@@ -237,27 +175,3 @@ jobs:
         with:
           name: clang-nullsafe-windows-x86_64
           path: install/clang-nullsafe-windows-x86_64.tar.gz
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: install/clang-nullsafe-windows-x86_64.tar.gz
-          body: |
-            ## Null-Safe Clang Binary Release (Windows)
-
-            This release contains the Null-Safe Clang compiler and clangd language server for Windows x86_64.
-
-            ### What's included:
-            - `clang.exe` - The Null-Safe C compiler
-            - `clangd.exe` - Language server for IDE integration (VSCode, vim, etc.)
-
-            ### Installation:
-            ```bash
-            tar -xzf clang-nullsafe-windows-x86_64.tar.gz
-            # Add bin/ directory to your PATH
-            clang --version
-            ```
-
-            See the [README](https://github.com/cs01/llvm-project/blob/null-safe-c-dev/README.md) for usage instructions.
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
