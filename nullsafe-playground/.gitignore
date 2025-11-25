@@ -1,6 +1,10 @@
-# Generated WASM files (too large to commit, will be built from source)
+# Generated WASM files (too large to commit, will be built from source or downloaded from releases)
 clang.wasm
 clang.js
+clang-nullsafe.wasm
+clang-nullsafe.js
+clang-mainline.wasm
+clang-mainline.js
 
 # Python cache
 __pycache__/

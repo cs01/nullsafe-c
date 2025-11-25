@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Null-Safe C Playground</title>
+    <title>Null-Safe Clang Playground</title>
     <style>
         * {
             margin: 0;
@@ -19,8 +19,7 @@
             --text-primary: #d4d4d4;
             --text-secondary: #cccccc;
             --text-muted: #888;
-            --accent-orange: #ff6b35;
-            --accent-red: #f7931e;
+            --accent-blue: #4a90e2;
             --success: #4ec9b0;
             --warning: #ffb84d;
             --error: #ff5252;
@@ -37,27 +36,38 @@
         }
 
         .header {
-            background: linear-gradient(135deg, var(--accent-orange) 0%, var(--accent-red) 100%);
+            background: var(--accent-blue);
             padding: 24px 32px;
             box-shadow: 0 4px 16px rgba(0,0,0,0.3);
             position: relative;
-            overflow: hidden;
-        }
-
-        .header::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(135deg, transparent 0%, rgba(255,255,255,0.05) 100%);
-            pointer-events: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .header-content {
             position: relative;
             z-index: 1;
+        }
+
+        .header-links {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .header-link {
+            color: white;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .header-link:hover {
+            background: rgba(255, 255, 255, 0.1);
         }
 
         .header h1 {
@@ -99,14 +109,14 @@
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, var(--accent-orange) 0%, var(--accent-red) 100%);
+            background: var(--accent-blue);
             color: white;
-            box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
+            box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
         }
 
         .btn-primary:hover:not(:disabled) {
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+            box-shadow: 0 4px 12px rgba(74, 144, 226, 0.4);
         }
 
         .btn-primary:active:not(:disabled) {
@@ -204,15 +214,14 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            transition: flex 0.3s ease;
         }
 
         .pane:first-child {
-            flex: 1;
+            flex: 0 0 50%;
         }
 
         .pane:last-child {
-            flex: 1;
+            flex: 0 0 50%;
         }
 
         .pane-header {
@@ -260,7 +269,7 @@
         }
 
         .divider:hover {
-            background: var(--accent-orange);
+            background: var(--accent-blue);
         }
 
         .divider::after {
@@ -284,7 +293,7 @@
             padding: 20px;
             font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
             font-size: 14px;
-            line-height: 1.7;
+            line-height: 1.5;
             background: transparent;
             color: transparent;
             border: none;
@@ -311,7 +320,7 @@
             padding: 20px;
             font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
             font-size: 14px;
-            line-height: 1.7;
+            line-height: 1.5;
             white-space: pre-wrap;
             word-wrap: break-word;
             overflow-y: auto;
@@ -349,13 +358,75 @@
             font-style: italic;
         }
 
+        .output-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .output-section {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .output-section:first-child {
+            flex: 0 0 50%;
+        }
+
+        .output-section:last-child {
+            flex: 0 0 50%;
+        }
+
+        .output-section-header {
+            background: var(--bg-tertiary);
+            padding: 8px 16px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+
+        .output-content {
+            flex: 1;
+            padding: 20px;
+            font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .output-content:empty::before {
+            content: 'Output will appear here...';
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .output-divider {
+            height: 5px;
+            background: var(--border-color);
+            cursor: row-resize;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .output-divider:hover {
+            background: var(--accent-blue);
+        }
+
         .error { color: var(--error); }
         .warning { color: var(--warning); }
         .success { color: var(--success); }
 
         .loading-bar {
             height: 3px;
-            background: linear-gradient(90deg, var(--accent-orange), var(--accent-red));
+            background: var(--accent-blue);
             position: absolute;
             top: 0;
             left: 0;
@@ -426,8 +497,16 @@
 
     <div class="header">
         <div class="header-content">
-            <h1>Null-Safe C Playground</h1>
-            <p>Experimental C compiler with strict nullability checking - Try it live in your browser</p>
+            <h1>Null-Safe Clang Playground</h1>
+            <p>Flow-sensitive null safety for C - Try the experimental compiler live in your browser</p>
+        </div>
+        <div class="header-links">
+            <a href="https://github.com/cs01/llvm-project/" target="_blank" class="header-link">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: text-bottom;">
+                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+                </svg>
+                GitHub
+            </a>
         </div>
     </div>
 
@@ -442,12 +521,8 @@
             <option value="function">Function Parameters</option>
         </select>
 
-        <button id="copyBtn" class="btn btn-secondary">
-            📋 Copy Code
-        </button>
-
-        <button id="clearOutputBtn" class="btn btn-secondary">
-            🗑 Clear Output
+        <button id="shareBtn" class="btn btn-secondary">
+            Share
         </button>
 
         <span id="status" class="status">Initializing compiler...</span>
@@ -456,9 +531,9 @@
     <div class="main-container">
         <div class="pane">
             <div class="pane-header">
-                <span>Source Code (main.c)</span>
+                <span>Source Code</span>
                 <div class="pane-actions">
-                    <button class="icon-btn" title="Keyboard shortcut: Cmd/Ctrl+Enter">⌨️ Ctrl+Enter to compile</button>
+                    <button class="icon-btn" title="Keyboard shortcut: Cmd/Ctrl+Enter">Ctrl+Enter to compile</button>
                 </div>
             </div>
             <div id="editor-wrapper">
@@ -476,7 +551,17 @@
                     <span id="outputStats" class="icon-btn" style="cursor: default;"></span>
                 </div>
             </div>
-            <div id="output"></div>
+            <div class="output-container">
+                <div class="output-section">
+                    <div class="output-section-header">Null-Safe Clang (with null-safety warnings)</div>
+                    <div id="output-nullsafe" class="output-content"></div>
+                </div>
+                <div class="output-divider" id="outputDivider"></div>
+                <div class="output-section">
+                    <div class="output-section-header">Null-Safe Clang (warnings suppressed with -Wno-nullability)</div>
+                    <div id="output-mainline" class="output-content"></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -485,16 +570,17 @@
     <script>
         const editor = document.getElementById('editor');
         const editorHighlight = document.getElementById('editor-highlight');
-        const output = document.getElementById('output');
+        const outputNullsafe = document.getElementById('output-nullsafe');
+        const outputMainline = document.getElementById('output-mainline');
         const compileBtn = document.getElementById('compileBtn');
         const status = document.getElementById('status');
         const examplesSelect = document.getElementById('examplesSelect');
-        const copyBtn = document.getElementById('copyBtn');
-        const clearOutputBtn = document.getElementById('clearOutputBtn');
+        const shareBtn = document.getElementById('shareBtn');
         const loadingBar = document.getElementById('loadingBar');
         const toast = document.getElementById('toast');
         const outputStats = document.getElementById('outputStats');
         const divider = document.getElementById('divider');
+        const outputDivider = document.getElementById('outputDivider');
 
         // Simple C syntax highlighter
         function highlightCode(code) {
@@ -569,76 +655,48 @@
         });
 
         const examples = {
-            'null-check': `#include <stdio.h>
-#include <stdlib.h>
-
-// Pointers are nullable by default
-// The compiler tracks null checks!
-
-int main(void) {
-    int *ptr = NULL;
-
-    // WARNING: might be null!
-    *ptr = 42;
-
-    // After null check, compiler knows it's safe
-    if (ptr != NULL) {
-        *ptr = 42;  // OK - compiler knows ptr is non-null here
+            'null-check': `void process(int* data) {
+    if (data) {
+        *data = 42;  // OK - data is non-null here
     }
+}
 
-    return 0;
+void unsafe(int* data) {
+    *data = 42;  // warning - data might be null!
 }`,
-            'array': `#include <stdio.h>
-#include <stdlib.h>
-
-// malloc can return NULL if allocation fails
+            'array': `#include <stdlib.h>
 
 int main(void) {
     int *arr = malloc(10 * sizeof(int));
 
-    // WARNING: arr might be NULL
-    arr[0] = 42;
+    arr[0] = 42;  // warning - malloc can return NULL
 
-    // SAFE: check before use
-    if (arr != NULL) {
-        arr[0] = 42;
-        arr[1] = 100;
-        printf("arr[0] = %d\\n", arr[0]);
+    if (arr) {
+        arr[0] = 42;  // OK - arr is non-null here
         free(arr);
-    } else {
-        printf("Allocation failed!\\n");
     }
 
     return 0;
 }`,
-            'function': `#include <stdio.h>
-
-// Parameters are nullable by default
-void process(int *data) {
-    // WARNING: data might be null
-    *data = 42;
+            'function': `void process(int *data) {
+    *data = 42;  // warning - data might be null
 }
 
-// Safe version with null check
 void process_safe(int *data) {
-    if (data != NULL) {
-        *data = 42;  // OK - compiler knows data is non-null
+    if (data) {
+        *data = 42;  // OK - checked for null
     }
 }
 
-// Explicitly non-null parameter
 void guaranteed(int * _Nonnull data) {
-    *data = 42;  // Always safe - caller must pass non-null
+    *data = 42;  // OK - caller must pass non-null
 }
 
 int main(void) {
-    int x = 42;
-    int *ptr = &x;
-
-    process(ptr);      // Works but ptr might be null
-    process_safe(ptr); // Safe - checks for null
-    guaranteed(ptr);   // OK - ptr is non-null here
-
+    int x = 0;
+    process(&x);
+    process_safe(&x);
+    guaranteed(&x);
     return 0;
 }`
         };
@@ -648,6 +706,7 @@ int main(void) {
         updateHighlight(); // Initial highlight
 
         let ClangModule = null;
+        let clangVersion = '';
         let isCompiling = false;
         let isDragging = false;
 
@@ -696,22 +755,38 @@ int main(void) {
             }
         });
 
-        // Copy button
-        copyBtn.addEventListener('click', async () => {
+        // Share button - encode code in URL
+        shareBtn.addEventListener('click', async () => {
             try {
-                await navigator.clipboard.writeText(editor.value);
-                showToast('Code copied to clipboard!');
+                const code = editor.value;
+                const encoded = btoa(unescape(encodeURIComponent(code)));
+                const url = new URL(window.location.href.split('?')[0]);
+                url.searchParams.set('code', encoded);
+
+                await navigator.clipboard.writeText(url.toString());
+                showToast('Share link copied to clipboard!');
             } catch (err) {
-                showToast('Failed to copy code');
+                showToast('Failed to create share link');
+                console.error('Share error:', err);
             }
         });
 
-        // Clear output button
-        clearOutputBtn.addEventListener('click', () => {
-            output.innerHTML = '';
-            outputStats.textContent = '';
-            showToast('Output cleared');
-        });
+        // Load code from URL on page load
+        function loadCodeFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const encodedCode = urlParams.get('code');
+            if (encodedCode) {
+                try {
+                    const code = decodeURIComponent(escape(atob(encodedCode)));
+                    editor.value = code;
+                    updateHighlight();
+                    showToast('Code loaded from URL!');
+                } catch (err) {
+                    console.error('Failed to decode URL code:', err);
+                    showToast('Failed to load code from URL');
+                }
+            }
+        }
 
         let capturedStdout = '';
         let capturedStderr = '';
@@ -742,25 +817,36 @@ int main(void) {
                         }
                     },
                     noInitialRun: true,
-                    noExitRuntime: true,  // Keep runtime alive
-                    // Set up command line arguments
+                    noExitRuntime: true,
                     arguments: [],
                     onRuntimeInitialized: function() {
                         ClangModule = window.Module;
                         console.log('Runtime initialized!');
-                        console.log('Module has FS:', !!window.Module.FS);
-                        console.log('Module has callMain:', !!window.Module.callMain);
 
-                        // Check all properties for main/call-related and exported functions
-                        const mainFuncs = Object.keys(window.Module).filter(k =>
-                            k.toLowerCase().includes('main') || k.toLowerCase().includes('call') || k.startsWith('_')
-                        );
-                        console.log('Main/call/exported functions:', mainFuncs);
+                        // Get compiler version
+                        captureOutput = true;
+                        capturedStdout = '';
+                        capturedStderr = '';
 
-                        // Check wasmExports
-                        if (window.Module.asm) {
-                            console.log('Module.asm keys:', Object.keys(window.Module.asm).slice(0, 50));
+                        try {
+                            Module.callMain(['--version']);
+                            const versionOutput = capturedStdout + capturedStderr;
+                            console.log('Clang version:', versionOutput);
+
+                            // Extract and store version
+                            const versionMatch = versionOutput.match(/clang version ([^\s]+)/);
+                            if (versionMatch) {
+                                clangVersion = versionMatch[1];
+                                document.querySelector('.output-section-header').textContent =
+                                    `Null-Safe Clang ${clangVersion}`;
+                            }
+                        } catch (e) {
+                            console.error('Failed to get version:', e);
                         }
+
+                        captureOutput = false;
+                        capturedStdout = '';
+                        capturedStderr = '';
 
                         status.textContent = 'Ready to compile';
                         status.className = 'status ready';
@@ -775,7 +861,13 @@ int main(void) {
                 };
 
                 const script = document.createElement('script');
-                script.src = './clang.js';
+                // Try to load from GitHub releases first, fall back to local for development
+                const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                const wasmPath = isDev
+                    ? './clang.js'
+                    : 'https://github.com/cs01/llvm-project/releases/latest/download/clang-nullsafe.js';
+
+                script.src = wasmPath;
                 script.onerror = () => {
                     status.textContent = 'Failed to load compiler';
                     status.className = 'status error';
@@ -796,14 +888,16 @@ int main(void) {
         async function compile() {
             if (isCompiling) return;
             if (!ClangModule) {
-                output.innerHTML = `<span class="error">Compiler not loaded yet. Please wait...</span>`;
+                outputNullsafe.innerHTML = `<span class="error">Compiler not loaded yet. Please wait...</span>`;
+                outputMainline.innerHTML = `<span class="error">Compiler not loaded yet. Please wait...</span>`;
                 return;
             }
 
             // Check if Module.FS is available
             const FS = window.Module?.FS || window.FS;
             if (!FS) {
-                output.innerHTML = `<span class="error">Compiler filesystem not ready. Please wait...</span>`;
+                outputNullsafe.innerHTML = `<span class="error">Compiler filesystem not ready. Please wait...</span>`;
+                outputMainline.innerHTML = `<span class="error">Compiler filesystem not ready. Please wait...</span>`;
                 console.error('FS not available - Module.FS:', !!window.Module?.FS, 'window.FS:', !!window.FS);
                 return;
             }
@@ -812,7 +906,8 @@ int main(void) {
             compileBtn.disabled = true;
             status.textContent = 'Compiling...';
             status.className = 'status compiling';
-            output.innerHTML = '';
+            outputNullsafe.innerHTML = '';
+            outputMainline.innerHTML = '';
             outputStats.textContent = '';
             loadingBar.classList.add('active');
 
@@ -820,30 +915,57 @@ int main(void) {
 
             try {
                 const code = editor.value;
-                const result = await compileCode(code);
+
+                // Compile with null-safety enabled (default)
+                const nullsafeFlags = [];
+                const nullsafeResult = await compileCode(code, nullsafeFlags);
+
+                // Compile with nullability warnings suppressed (simulates mainline)
+                const mainlineFlags = ['-Wno-nullability'];
+                const mainlineResult = await compileCode(code, mainlineFlags);
+
                 const duration = (performance.now() - startTime).toFixed(0);
 
-                if (result.stdout || result.stderr) {
-                    output.textContent = result.stderr + result.stdout;
+                // Build command strings
+                const baseArgs = '-fsyntax-only --target=wasm32-unknown-emscripten';
+                const nullsafeCmd = `$ clang ${baseArgs}${nullsafeFlags.length ? ' ' + nullsafeFlags.join(' ') : ''} input.c`;
+                const mainlineCmd = `$ clang ${baseArgs}${mainlineFlags.length ? ' ' + mainlineFlags.join(' ') : ''} input.c`;
 
-                    const errorCount = (result.stderr.match(/error:/g) || []).length;
-                    const warningCount = (result.stderr.match(/warning:/g) || []).length;
+                // Update headers with compiler names
+                const headers = document.querySelectorAll('.output-section-header');
+                headers[0].textContent = `Null-Safe Clang ${clangVersion} (with null-safety warnings)`;
+                headers[1].textContent = `Null-Safe Clang ${clangVersion} (warnings suppressed with -Wno-nullability)`;
 
-                    let stats = [];
-                    if (errorCount > 0) stats.push(`${errorCount} error${errorCount !== 1 ? 's' : ''}`);
-                    if (warningCount > 0) stats.push(`${warningCount} warning${warningCount !== 1 ? 's' : ''}`);
-                    stats.push(`${duration}ms`);
-
-                    outputStats.textContent = stats.join(' • ');
+                // Display null-safe results with command
+                if (nullsafeResult.stdout || nullsafeResult.stderr) {
+                    outputNullsafe.textContent = nullsafeCmd + '\n' + nullsafeResult.stderr + nullsafeResult.stdout;
                 } else {
-                    output.innerHTML = `<span class="success">✓ Compilation successful! No errors or warnings.</span>`;
-                    outputStats.textContent = `✓ Success • ${duration}ms`;
+                    outputNullsafe.textContent = nullsafeCmd + '\n✓ No errors or warnings';
                 }
+
+                // Display mainline results with command
+                if (mainlineResult.stdout || mainlineResult.stderr) {
+                    outputMainline.textContent = mainlineCmd + '\n' + mainlineResult.stderr + mainlineResult.stdout;
+                } else {
+                    outputMainline.textContent = mainlineCmd + '\n✓ No errors or warnings';
+                }
+
+                // Calculate stats from null-safe results
+                const errorCount = (nullsafeResult.stderr.match(/error:/g) || []).length;
+                const warningCount = (nullsafeResult.stderr.match(/warning:/g) || []).length;
+
+                let stats = [];
+                if (errorCount > 0) stats.push(`${errorCount} error${errorCount !== 1 ? 's' : ''}`);
+                if (warningCount > 0) stats.push(`${warningCount} warning${warningCount !== 1 ? 's' : ''}`);
+                stats.push(`${duration}ms`);
+
+                outputStats.textContent = stats.join(' • ');
 
                 status.textContent = 'Ready to compile';
                 status.className = 'status ready';
             } catch (error) {
-                output.innerHTML = `<span class="error">Compilation failed: ${error.message}</span>`;
+                outputNullsafe.innerHTML = `<span class="error">Compilation failed: ${error.message}</span>`;
+                outputMainline.innerHTML = `<span class="error">Compilation failed: ${error.message}</span>`;
                 status.textContent = 'Compilation error';
                 status.className = 'status error';
                 outputStats.textContent = '✗ Failed';
@@ -855,10 +977,10 @@ int main(void) {
             }
         }
 
-        async function compileCode(code) {
+        async function compileCode(code, extraFlags = []) {
             return new Promise((resolve, reject) => {
                 try {
-                    const inputFile = 'input.c';  // Try relative path
+                    const inputFile = 'input.c';
 
                     // Get FS
                     const FS = window.Module?.FS || window.FS;
@@ -869,46 +991,28 @@ int main(void) {
                     // Write the file
                     FS.writeFile(inputFile, code);
 
-                    // Verify file exists
-                    try {
-                        const fileContent = FS.readFile(inputFile, { encoding: 'utf8' });
-                        console.log('File written successfully, size:', fileContent.length);
-                        console.log('File content preview:', fileContent.substring(0, 100));
-                    } catch (e) {
-                        console.error('Cannot read back file:', e);
-                    }
-
-                    // List files in root
-                    try {
-                        const files = FS.readdir('/');
-                        console.log('Files in root:', files);
-                    } catch (e) {
-                        console.error('Cannot list files:', e);
-                    }
-
                     // Reset and enable capture
                     capturedStdout = '';
                     capturedStderr = '';
                     captureOutput = true;
 
                     try {
-                        // Emscripten doesn't pass Module.arguments to an already-running main
-                        // We need to set up ENV and call differently
-                        const oldArgs = Module.arguments;
-
-                        // Try setting arguments before calling _main
-                        Module['arguments'] = ['-fsyntax-only', 'input.c'];
-
-                        console.log('Calling clang with Module.arguments:', Module.arguments);
-
-                        // Try calling with argc/argv = 0, Emscripten should use Module.arguments
-                        // But it seems like it doesn't work for subsequent calls
-                        // Let's try passing actual argc
-                        const argc = 2;  // Program name + our args
-                        const exitCode = Module._main(argc, 0);
-                        console.log('Clang exit code:', exitCode);
-
-                        Module.arguments = oldArgs;
+                        // Use callMain if available (built with -sEXPORTED_RUNTIME_METHODS=callMain)
+                        if (Module.callMain) {
+                            // Build command line arguments
+                            const args = [
+                                '-fsyntax-only',
+                                '--target=wasm32-unknown-emscripten',
+                                ...extraFlags,
+                                'input.c'
+                            ];
+                            console.log('Compiling with args:', args);
+                            const exitCode = Module.callMain(args);
+                            console.log('Clang exit code:', exitCode);
+                        } else {
+                            console.error('Module.callMain not available!');
+                            throw new Error('Module.callMain not exported. Rebuild with -sEXPORTED_RUNTIME_METHODS=callMain');
+                        }
                     } catch (e) {
                         console.log('Clang execution error:', e);
                     }
@@ -922,7 +1026,6 @@ int main(void) {
                         // Ignore
                     }
 
-                    console.log('Compilation result:', { stdout: capturedStdout, stderr: capturedStderr });
                     resolve({ stdout: capturedStdout, stderr: capturedStderr });
                 } catch (error) {
                     captureOutput = false;
@@ -936,6 +1039,7 @@ int main(void) {
 
         // Auto-compile on load
         window.addEventListener('load', () => {
+            loadCodeFromURL();  // Load code from URL if present
             initCompiler();
         });
 
