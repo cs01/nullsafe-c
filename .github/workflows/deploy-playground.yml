@@ -31,15 +31,16 @@ jobs:
             exit 1
           fi
 
-          # Download the WASM files into playground directory
-          cd nullsafe-playground
+          # Download the WASM files to a temp directory
+          mkdir -p /tmp/wasm-files
+          cd /tmp/wasm-files
           curl -L -o clang.wasm "https://github.com/${{ github.repository }}/releases/download/${LATEST_RELEASE}/clang-nullsafe.wasm"
           curl -L -o clang.js "https://github.com/${{ github.repository }}/releases/download/${LATEST_RELEASE}/clang-nullsafe.js"
           curl -L -o clangd.wasm "https://github.com/${{ github.repository }}/releases/download/${LATEST_RELEASE}/clangd-nullsafe.wasm"
           curl -L -o clangd.js "https://github.com/${{ github.repository }}/releases/download/${LATEST_RELEASE}/clangd-nullsafe.js"
 
           echo "Downloaded files:"
-          ls -lh clang.wasm clang.js clangd.wasm clangd.js
+          ls -lh
 
       - name: Deploy to gh-pages
         run: |
@@ -59,10 +60,13 @@ jobs:
           # Clear everything
           git rm -rf . 2>/dev/null || true
 
-          # Copy playground files
+          # Copy playground files from the original branch
           git checkout null-safe-c-dev -- nullsafe-playground
           mv nullsafe-playground/* .
           rm -rf nullsafe-playground
+
+          # Copy the downloaded WASM files
+          cp /tmp/wasm-files/* .
 
           # Disable Jekyll processing
           touch .nojekyll
