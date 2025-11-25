@@ -573,7 +573,7 @@
             <option value="and-pattern">7. AND Pattern Narrowing</option>
             <option value="else-branch">8. Else Branch Narrowing</option>
             <option value="loop-narrowing">9. Loop Condition Narrowing</option>
-            <option value="dereference-context">10. Dereference in Condition</option>
+            <option value="dereference-context">10. Null Check Before Deref</option>
         </select>
 
         <button id="shareBtn" class="btn btn-secondary">
@@ -677,8 +677,8 @@ void multi_guard(char* p, char* q) {
 int is_digit(char c) __attribute__((const));
 
 void parse(const char* str) {
-    if (is_digit(*str)) {  // narrows str
-        char val = *str - '0';  // OK - still narrowed
+    if (str && is_digit(*str)) {  // Check first, then call
+        char val = *str - '0';  // OK - narrowed by check
     }
 }`,
 
@@ -769,22 +769,22 @@ void for_loop(int* p) {
     }
 }`,
 
-            'dereference-context': `// Dereference in condition is allowed
+            'dereference-context': `// Must null-check before dereferencing
 void while_str(const char* ptr) {
-    while (*ptr != '\\0') {  // OK - can deref
+    while (ptr && *ptr != '\\0') {  // Check first!
         ptr++;
     }
 }
 
 void if_check(const char* str) {
-    if (*str == 'a') {  // OK - can deref
+    if (str && *str == 'a') {  // Check first!
         // process...
     }
 }
 
 void for_check(const char* input) {
     const char* p;
-    for (p = input; *p; p++) {  // OK - can deref
+    for (p = input; p && *p; p++) {  // Check first!
         // process...
     }
 }`
@@ -1118,13 +1118,22 @@ ${mainlineOutput}
             try {
                 // Determine script URL
                 const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                scriptUrl = isDev
-                    ? './clang.js'
-                    : 'https://github.com/cs01/llvm-project/releases/latest/download/clang-nullsafe.js';
 
-                const wasmUrl = isDev
-                    ? './clang.wasm'
-                    : 'https://github.com/cs01/llvm-project/releases/latest/download/clang-nullsafe.wasm';
+                // Allow testing production URLs on localhost with ?prod=1
+                const urlParams = new URLSearchParams(window.location.search);
+                const forceProd = urlParams.get('prod') === '1' || urlParams.get('mode') === 'prod';
+
+                if (isDev && !forceProd) {
+                    // Local development - files should be in the same directory
+                    scriptUrl = './clang.js';
+                    var wasmUrl = './clang.wasm';
+                    console.log('🔧 Development mode: Using local files');
+                } else {
+                    // Production - files are served from GitHub Pages (same origin, no CORS issues!)
+                    scriptUrl = './clang.js';
+                    var wasmUrl = './clang.wasm';
+                    console.log('🚀 Production mode: Using files from GitHub Pages');
+                }
 
                 // Pre-load the WASM binary ONCE with progress tracking
                 console.log('Downloading WASM binary...');

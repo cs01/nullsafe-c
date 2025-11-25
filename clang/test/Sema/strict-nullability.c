@@ -475,24 +475,24 @@ void test_while_and_narrowing(const unsigned char* input_pointer,
     }
 }
 
-// Test: dereference in while condition (condition context)
+// Test: dereference in while condition requires null check first
 void test_while_deref_condition(const char *ptr) {
-    while (*ptr != '\0') {  // OK - dereference allowed in condition
+    while (*ptr != '\0') {  // expected-warning {{dereferencing nullable pointer}}
         ptr++;
     }
 }
 
-// Test: dereference in for condition (condition context)
+// Test: dereference in for condition requires null check first
 void test_for_deref_condition(const char *input) {
     const char *ptr;
-    for (ptr = input; *ptr != '\0'; ptr++) {  // OK - dereference allowed in condition
+    for (ptr = input; *ptr != '\0'; ptr++) {  // expected-warning {{dereferencing nullable pointer}}
         // loop body
     }
 }
 
-// Test: dereference in if condition (condition context)
+// Test: dereference in if condition requires null check first
 void test_if_deref_condition(const char *str) {
-    if (*str == 'a') {  // OK - dereference allowed in condition
+    if (*str == 'a') {  // expected-warning {{dereferencing nullable pointer}}
         // then branch
     }
 }
@@ -501,17 +501,17 @@ void test_if_deref_condition(const char *str) {
 int is_digit_pure(char c) __attribute__((const));
 
 void test_pure_function_preserves_narrowing(const char *zDate) {
-    if (!is_digit_pure(*zDate)) {  // dereference in condition - narrows zDate to non-null
+    if (!is_digit_pure(*zDate)) {  // expected-warning {{dereferencing nullable pointer}}
         return;
     }
-    char val = *zDate - '0';  // Should be OK - zDate still non-null after pure function call
+    char val = *zDate - '0';  // OK after dereference above - if we got here, zDate is non-null
 }
 
 // Test: narrowing invalidated after impure function call
 int is_digit_impure(char c);
 
 void test_impure_function_invalidates_narrowing(const char *zDate) {
-    if (!is_digit_impure(*zDate)) {  // dereference in condition - narrows zDate to non-null
+    if (!is_digit_impure(*zDate)) {  // expected-warning {{dereferencing nullable pointer}}
         return;
     }
     char val = *zDate - '0';  // expected-warning {{dereferencing nullable pointer}}
@@ -521,10 +521,10 @@ void test_impure_function_invalidates_narrowing(const char *zDate) {
 int is_also_pure(char c) __attribute__((pure));
 
 void test_pure_attr_preserves_narrowing(const char *zDate) {
-    if (!is_also_pure(*zDate)) {  // dereference in condition - narrows zDate to non-null
+    if (!is_also_pure(*zDate)) {  // expected-warning {{dereferencing nullable pointer}}
         return;
     }
-    char val = *zDate - '0';  // Should be OK - zDate still non-null after pure function call
+    char val = *zDate - '0';  // OK after dereference above - if we got here, zDate is non-null
 }
 
 // ============================================================================

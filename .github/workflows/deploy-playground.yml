@@ -7,32 +7,71 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  contents: write
 
 jobs:
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
         with:
-          path: 'nullsafe-playground'
+          fetch-depth: 0
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Download latest WASM files from release
+        run: |
+          # Get the latest playground release
+          LATEST_RELEASE=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases | \
+            jq -r '[.[] | select(.tag_name | startswith("playground-v"))] | first | .tag_name')
+
+          echo "Latest playground release: $LATEST_RELEASE"
+
+          if [ -z "$LATEST_RELEASE" ]; then
+            echo "No playground release found! Please create a release with tag 'playground-vX.X.X'"
+            exit 1
+          fi
+
+          # Download the WASM files into playground directory
+          cd nullsafe-playground
+          curl -L -o clang.wasm "https://github.com/${{ github.repository }}/releases/download/${LATEST_RELEASE}/clang-nullsafe.wasm"
+          curl -L -o clang.js "https://github.com/${{ github.repository }}/releases/download/${LATEST_RELEASE}/clang-nullsafe.js"
+          curl -L -o clangd.wasm "https://github.com/${{ github.repository }}/releases/download/${LATEST_RELEASE}/clangd-nullsafe.wasm"
+          curl -L -o clangd.js "https://github.com/${{ github.repository }}/releases/download/${LATEST_RELEASE}/clangd-nullsafe.js"
+
+          echo "Downloaded files:"
+          ls -lh clang.wasm clang.js clangd.wasm clangd.js
+
+      - name: Deploy to gh-pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Check if gh-pages exists
+          if git ls-remote --exit-code --heads origin gh-pages; then
+            echo "gh-pages branch exists, checking out"
+            git fetch origin gh-pages
+            git checkout gh-pages
+          else
+            echo "Creating new orphan gh-pages branch"
+            git checkout --orphan gh-pages
+          fi
+
+          # Clear everything
+          git rm -rf . 2>/dev/null || true
+
+          # Copy playground files
+          git checkout null-safe-c-dev -- nullsafe-playground
+          mv nullsafe-playground/* .
+          rm -rf nullsafe-playground
+
+          # Add all files (including the downloaded WASM)
+          git add -A
+
+          # Commit
+          if git diff --staged --quiet; then
+            echo "No changes to deploy"
+          else
+            git commit -m "Deploy playground from ${{ github.sha }}"
+            git push origin gh-pages
+          fi
+

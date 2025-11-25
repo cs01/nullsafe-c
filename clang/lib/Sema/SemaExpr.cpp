@@ -14925,12 +14925,9 @@ static QualType CheckIndirectionOperand(Sema &S, Expr *Op, ExprValueKind &VK,
 
     if (auto Nullability = CheckType->getNullability()) {
       if (*Nullability == NullabilityKind::Nullable) {
-        // strict-nullability: Allow nullable dereferences in condition contexts (if/while/for).
-        // The dereference itself performs a null-check, so it's safe.
-        // The narrowing analysis will collect these and narrow the pointer for the body.
-        if (S.InConditionContext == 0) {
-          S.Diag(OpLoc, diag::warn_strict_nullability_dereference) << OpTy;
-        }
+        // strict-nullability: Warn about dereferencing nullable pointers.
+        // Dereferencing does NOT perform a null-check - it will crash if null!
+        S.Diag(OpLoc, diag::warn_strict_nullability_dereference) << OpTy;
       }
     }
   }

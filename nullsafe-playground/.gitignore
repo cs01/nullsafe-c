@@ -1,8 +1,12 @@
 # Generated WASM files (too large to commit, will be built from source or downloaded from releases)
 clang.wasm
 clang.js
+clangd.wasm
+clangd.js
 clang-nullsafe.wasm
 clang-nullsafe.js
+clangd-nullsafe.wasm
+clangd-nullsafe.js
 clang-mainline.wasm
 clang-mainline.js
 
