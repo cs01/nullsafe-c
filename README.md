@@ -1,5 +1,7 @@
 # Null-Safe Clang: An experimental C/C++ compiler
 
+[![Test Null-Safety](https://github.com/cs01/llvm-project/actions/workflows/test-null-safety.yml/badge.svg)](https://github.com/cs01/llvm-project/actions/workflows/test-null-safety.yml)
+
 An experimental Clang fork that adds flow-sensitive null safety to C and C++, inspired by modern languages like TypeScript, Kotlin, and Rust.
 
 **Try it online:** [Interactive Playground](https://cs01.github.io/llvm-project/) - See null-safety warnings in real-time in your browser!
