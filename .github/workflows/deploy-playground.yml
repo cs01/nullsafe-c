@@ -64,6 +64,9 @@ jobs:
           mv nullsafe-playground/* .
           rm -rf nullsafe-playground
 
+          # Disable Jekyll processing
+          touch .nojekyll
+
           # Add all files (including the downloaded WASM)
           git add -A
 
