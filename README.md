@@ -2,6 +2,8 @@
 
 An experimental Clang fork that adds flow-sensitive null safety to C and C++, inspired by modern languages like TypeScript, Kotlin, and Rust.
 
+**Try it online:** [Interactive Playground](https://cs01.github.io/llvm-project/) - See null-safety warnings in real-time in your browser!
+
 ## What This Adds
 
 This compiler adds two key features to prevent null pointer crashes:
@@ -31,6 +33,65 @@ This fork: The `unsafe` function warns you about the potential null dereference.
 This experimental fork of Clang adds flow-sensitive nullability analysis while remaining 100% compatible with standard C. It includes all of Clang's features plus enhanced nullability checking in both the compiler and the `clangd` language server.
 
 By default, strict nullability is enabled and issues warnings. You can promote warnings to errors with `-Werror=nullability`, or disable the feature entirely with `-fno-strict-nullability`.
+
+## Installation
+
+### Quick Install (Linux/macOS)
+
+Download and extract the latest release for your platform:
+
+```bash
+# Auto-detect your platform and install
+curl -fsSL https://raw.githubusercontent.com/cs01/llvm-project/null-safe-c-dev/install.sh | sh
+
+# Or manually download:
+# Linux x86_64:
+curl -L https://github.com/cs01/llvm-project/releases/latest/download/clang-nullsafe-linux-x86_64.tar.gz | tar xz
+
+# macOS (Intel/Apple Silicon):
+curl -L https://github.com/cs01/llvm-project/releases/latest/download/clang-nullsafe-macos-universal.tar.gz | tar xz
+
+# Add to PATH
+export PATH="$PWD/bin:$PATH"
+clang --version
+```
+
+### Windows
+
+Download the Windows release:
+```bash
+curl -L https://github.com/cs01/llvm-project/releases/latest/download/clang-nullsafe-windows-x86_64.tar.gz -o clang-nullsafe.tar.gz
+tar -xzf clang-nullsafe.tar.gz
+# Add bin\ directory to your PATH
+clang --version
+```
+
+### What's Included
+
+Each release includes:
+- **`clang`** - The Null-Safe C compiler with flow-sensitive null checking
+- **`clangd`** - Language server for IDE integration (VSCode, vim, Neovim, Emacs, etc.)
+
+### IDE Integration
+
+Once installed, configure your editor to use the null-safe `clangd`:
+
+**VSCode:**
+```json
+// settings.json
+{
+  "clangd.path": "/path/to/null-safe-clang/bin/clangd"
+}
+```
+
+**Neovim/vim:**
+```lua
+require('lspconfig').clangd.setup({
+  cmd = { '/path/to/null-safe-clang/bin/clangd' }
+})
+```
+
+This gives you real-time null-safety warnings as you type!
 
 
 ## Memory Safety in General
