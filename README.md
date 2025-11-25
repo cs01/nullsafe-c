@@ -147,131 +147,25 @@ Many standard library functions already have these attributes in GNU libc header
 
 ## Null-Safe C Standard Library
 
-The `clang/nullsafe-headers/` directory contains nullability-annotated standard library headers. Currently includes:
-- `string.h` - String manipulation functions (`strlen`, `strcpy`, `strdup`, etc.)
-- `stdlib.h` - Memory allocation and utilities (`malloc`, `free`, `getenv`, etc.)
-- `stdio.h` - File and I/O operations (`fopen`, `fclose`, `fprintf`, etc.)
-
-These headers tell the compiler which functions can return NULL and which parameters can be NULL—information missing from system headers.
-
-Functions like `malloc`, `strdup`, `getenv` are annotated to return `_Nullable` pointers (can be NULL), while parameters like `strlen`'s input are marked `_Nonnull` (must not be NULL).
-
-Without null-safe headers (using system headers):
-```c
-#include <string.h>  // System headers - no parameter nullability info
-
-void example(const char* input) {
-    char* result = strdup(input);  // No warning - compiler doesn't know strdup needs nonnull
-    result[0] = 'x';                // ⚠️  Warning: result might be NULL (all pointers nullable by default)
-}
-```
-You get warnings about dereferencing nullable return values, but not about passing NULL to functions.
-
-With null-safe headers:
-```c
-#include "string.h"  // From clang/nullsafe-headers - strdup parameter is _Nonnull
-
-void example(const char* input) {
-    char* result = strdup(input);  // ⚠️  Warning: passing nullable 'input' to nonnull parameter!
-    result[0] = 'x';                // ⚠️  Warning: dereferencing nullable pointer!
-
-    // Fix both issues:
-    if (input) {
-        char* result = strdup(input);  // ✓ OK - input is non-null
-        if (result) {
-            result[0] = 'x';            // ✓ OK - result is non-null
-            free(result);
-        }
-    }
-}
-```
-Now you get warnings for BOTH nullable returns AND passing NULL to nonnull parameters.
-
-The headers catch both directions:
-
-```c
-#include "string.h"
-
-void test_returns(void) {
-    char* str = malloc(100);  // malloc returns _Nullable
-    str[0] = 'x';             // ⚠️  Warning: str might be NULL!
-}
-
-void test_params(char* str) {
-    strlen(str);              // ⚠️  Warning: str is nullable, strlen expects nonnull!
-
-    if (str) {
-        strlen(str);          // ✓ OK - str is non-null here
-    }
-}
-```
-
-### Using Null-Safe Headers
+Nullability-annotated headers for `string.h`, `stdlib.h`, and `stdio.h` are available in `clang/nullsafe-headers/`. These tell the compiler which functions return nullable pointers and which parameters must be non-null.
 
 ```bash
 # Compile with null-safe headers
 clang -Iclang/nullsafe-headers/include mycode.c
 ```
 
-Example code:
 ```c
 #include "string.h"
 #include "stdlib.h"
 
-void safe_code(const char* input) {
-    if (!input) return;  // Early return for null check
-
-    // After the check, strict nullability knows input is non-null
-    size_t len = strlen(input);  // OK - strlen expects non-null
-    char* copy = malloc(len + 1);
-
-    if (copy) {  // Check malloc result (returns _Nullable)
-        strcpy(copy, input);  // OK - both non-null
+void example(const char* input) {
+    if (!input) return;
+    char* copy = malloc(strlen(input) + 1);  // malloc returns _Nullable
+    if (copy) {
+        strcpy(copy, input);  // Both parameters narrowed to non-null
         free(copy);
     }
 }
 ```
 
-See [`clang/nullsafe-headers/README.md`](clang/nullsafe-headers/README.md) for complete documentation.
-
-
----
-
-# The LLVM Compiler Infrastructure
-
-This repository contains the source code for LLVM, a toolkit for the
-construction of highly optimized compilers, optimizers, and run-time
-environments.
-
-The LLVM project has multiple components. The core of the project is
-itself called "LLVM". This contains all of the tools, libraries, and header
-files needed to process intermediate representations and convert them into
-object files. Tools include an assembler, disassembler, bitcode analyzer, and
-bitcode optimizer.
-
-C-like languages use the [Clang](https://clang.llvm.org/) frontend. This
-component compiles C, C++, Objective-C, and Objective-C++ code into LLVM bitcode
--- and from there into object files, using LLVM.
-
-Other components include:
-the [libc++ C++ standard library](https://libcxx.llvm.org),
-the [LLD linker](https://lld.llvm.org), and more.
-
-## Getting the Source Code and Building LLVM
-
-Consult the
-[Getting Started with LLVM](https://llvm.org/docs/GettingStarted.html#getting-the-source-code-and-building-llvm)
-page for information on building and running LLVM.
-
-For information on how to contribute to the LLVM project, please take a look at
-the [Contributing to LLVM](https://llvm.org/docs/Contributing.html) guide.
-
-## Getting in touch
-
-Join the [LLVM Discourse forums](https://discourse.llvm.org/), [Discord
-chat](https://discord.gg/xS7Z362),
-[LLVM Office Hours](https://llvm.org/docs/GettingInvolved.html#office-hours) or
-[Regular sync-ups](https://llvm.org/docs/GettingInvolved.html#online-sync-ups).
-
-The LLVM project has adopted a [code of conduct](https://llvm.org/docs/CodeOfConduct.html) for
-participants to all modes of communication within the project.
+See [`clang/nullsafe-headers/README.md`](clang/nullsafe-headers/README.md) for details.

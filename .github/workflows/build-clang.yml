@@ -1,0 +1,151 @@
+name: Build Null-Safe Clang Binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake build-essential
+
+      - name: Configure build
+        run: |
+          mkdir -p build
+          cd build
+          cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLLVM_ENABLE_PROJECTS="clang" \
+            -DLLVM_TARGETS_TO_BUILD="X86" \
+            -DLLVM_ENABLE_ASSERTIONS=OFF \
+            -DCMAKE_INSTALL_PREFIX=../install \
+            ../llvm
+
+      - name: Build Clang
+        run: |
+          cd build
+          ninja clang
+
+      - name: Install Clang
+        run: |
+          cd build
+          ninja install-clang
+          ninja install-clang-headers
+
+      - name: Package binaries
+        run: |
+          cd install
+          tar -czf clang-nullsafe-linux-x86_64.tar.gz bin/ lib/clang/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: clang-nullsafe-linux-x86_64
+          path: install/clang-nullsafe-linux-x86_64.tar.gz
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: install/clang-nullsafe-linux-x86_64.tar.gz
+          body: |
+            ## Null-Safe Clang Binary Release
+
+            This release contains the Null-Safe Clang compiler for Linux x86_64.
+
+            ### Installation:
+            ```bash
+            tar -xzf clang-nullsafe-linux-x86_64.tar.gz
+            export PATH=$PWD/bin:$PATH
+            clang --version
+            ```
+
+            ### Usage:
+            ```bash
+            # Compile with null-safety warnings (default)
+            clang mycode.c
+
+            # Promote warnings to errors
+            clang -Werror=nullability mycode.c
+
+            # Disable null-safety checking
+            clang -fno-strict-nullability mycode.c
+            ```
+
+            See the [README](https://github.com/cs01/llvm-project/blob/null-safe-c-dev/README.md) for full documentation.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install ninja cmake
+
+      - name: Configure build
+        run: |
+          mkdir -p build
+          cd build
+          cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLLVM_ENABLE_PROJECTS="clang" \
+            -DLLVM_TARGETS_TO_BUILD="AArch64;X86" \
+            -DLLVM_ENABLE_ASSERTIONS=OFF \
+            -DCMAKE_INSTALL_PREFIX=../install \
+            ../llvm
+
+      - name: Build Clang
+        run: |
+          cd build
+          ninja clang
+
+      - name: Install Clang
+        run: |
+          cd build
+          ninja install-clang
+          ninja install-clang-headers
+
+      - name: Package binaries
+        run: |
+          cd install
+          tar -czf clang-nullsafe-macos-universal.tar.gz bin/ lib/clang/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: clang-nullsafe-macos-universal
+          path: install/clang-nullsafe-macos-universal.tar.gz
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: install/clang-nullsafe-macos-universal.tar.gz
+          body: |
+            ## Null-Safe Clang Binary Release (macOS)
+
+            This release contains the Null-Safe Clang compiler for macOS (Intel and Apple Silicon).
+
+            ### Installation:
+            ```bash
+            tar -xzf clang-nullsafe-macos-universal.tar.gz
+            export PATH=$PWD/bin:$PATH
+            clang --version
+            ```
+
+            See the [README](https://github.com/cs01/llvm-project/blob/null-safe-c-dev/README.md) for usage instructions.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
