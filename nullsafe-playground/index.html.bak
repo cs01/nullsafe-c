@@ -166,35 +166,106 @@
         }
 
         .status {
-            color: var(--text-primary);
-            font-size: 13px;
+            color: var(--text-muted);
+            font-size: 14px;
             margin-left: auto;
-            display: inline-flex;
+            display: flex;
             align-items: center;
-            gap: 6px;
-            padding: 6px 14px;
-            border-radius: 16px;
+            gap: 8px;
+            min-width: 300px;
+        }
+
+        .status::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            display: inline-block;
+            animation: pulse 2s infinite;
+            flex-shrink: 0;
+        }
+
+        .status.ready::before {
+            background: var(--success);
+            animation: none;
+        }
+
+        .status.compiling::before {
+            background: var(--warning);
+        }
+
+        .status.error::before {
+            background: var(--error);
+            animation: none;
+        }
+
+        .progress-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .progress-bar-wrapper {
+            flex: 1;
+            max-width: 200px;
+            height: 20px;
             background: var(--bg-tertiary);
+            border-radius: 3px;
+            overflow: hidden;
             border: 1px solid var(--border-color);
-            font-weight: 500;
+            position: relative;
         }
 
-        .status.ready {
-            background: rgba(78, 201, 176, 0.15);
-            border-color: rgba(78, 201, 176, 0.3);
-            color: var(--success);
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--accent-blue);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 2px;
+            position: relative;
+            overflow: hidden;
         }
 
-        .status.compiling {
-            background: rgba(255, 184, 77, 0.15);
-            border-color: rgba(255, 184, 77, 0.3);
-            color: var(--warning);
+        .progress-bar-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(255, 255, 255, 0.2),
+                transparent
+            );
+            animation: shimmer 2s infinite;
         }
 
-        .status.error {
-            background: rgba(255, 82, 82, 0.15);
-            border-color: rgba(255, 82, 82, 0.3);
-            color: var(--error);
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .progress-text {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            min-width: 40px;
+            text-align: right;
+        }
+
+        .progress-message {
+            font-size: 14px;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
 
         .loading-spinner {
@@ -206,7 +277,7 @@
 
         .loading-bar {
             width: 3px;
-            background: currentColor;
+            background: white;
             border-radius: 2px;
             animation: loading-bounce 0.8s ease-in-out infinite;
         }
@@ -231,6 +302,14 @@
                 height: 14px;
             }
         }
+
+        .status:has(.loading-spinner)::before {
+            display: none;
+        }
+
+        .status.ready { color: var(--success); }
+        .status.compiling { color: var(--warning); }
+        .status.error { color: var(--error); }
 
         .main-container {
             display: flex;
@@ -301,17 +380,6 @@
             background: var(--accent-blue);
         }
 
-        .divider::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 3px;
-            height: 40px;
-            background: var(--bg-primary);
-            border-radius: 2px;
-        }
 
         #editor-wrapper {
             flex: 1;
@@ -514,12 +582,19 @@
         </button>
 
         <span id="status" class="status">
-            <span class="loading-spinner">
+            <div class="progress-container" id="progressContainer" style="display: none;">
+                <span class="progress-message">Loading Clang compiler</span>
+                <div class="progress-bar-wrapper">
+                    <div class="progress-bar-fill" id="progressBarFill"></div>
+                </div>
+                <span class="progress-text" id="progressText">0%</span>
+            </div>
+            <span class="loading-spinner" id="loadingSpinner">
                 <span class="loading-bar"></span>
                 <span class="loading-bar"></span>
                 <span class="loading-bar"></span>
             </span>
-            Initializing compiler...
+            <span id="statusText">Initializing compiler...</span>
         </span>
     </div>
 
@@ -571,6 +646,11 @@
         const outputMainline = document.getElementById('output-mainline');
         const compileBtn = document.getElementById('compileBtn');
         const status = document.getElementById('status');
+        const statusText = document.getElementById('statusText');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBarFill = document.getElementById('progressBarFill');
+        const progressText = document.getElementById('progressText');
         const examplesSelect = document.getElementById('examplesSelect');
         const shareBtn = document.getElementById('shareBtn');
         const loadingBar = document.getElementById('loadingBar');
@@ -677,11 +757,23 @@ void caller(void) {
         }
 
         // Status update helper
-        function setStatus(message, showSpinner = false) {
-            if (showSpinner) {
-                status.innerHTML = `<span class="loading-spinner"><span class="loading-bar"></span><span class="loading-bar"></span><span class="loading-bar"></span></span> ${message}`;
+        function setStatus(message, showSpinner = false, showProgress = false, percent = 0) {
+            if (showProgress) {
+                progressContainer.style.display = 'flex';
+                loadingSpinner.style.display = 'none';
+                statusText.style.display = 'none';
+                progressBarFill.style.width = percent + '%';
+                progressText.textContent = percent + '%';
+            } else if (showSpinner) {
+                progressContainer.style.display = 'none';
+                loadingSpinner.style.display = 'inline-flex';
+                statusText.style.display = 'inline';
+                statusText.textContent = message;
             } else {
-                status.textContent = message;
+                progressContainer.style.display = 'none';
+                loadingSpinner.style.display = 'none';
+                statusText.style.display = 'inline';
+                statusText.textContent = message;
             }
         }
 
@@ -708,6 +800,33 @@ void caller(void) {
 
         document.addEventListener('mouseup', () => {
             isDragging = false;
+        });
+
+        // Resizable output panes
+        let isOutputDragging = false;
+
+        outputDivider.addEventListener('mousedown', (e) => {
+            isOutputDragging = true;
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isOutputDragging) return;
+
+            const container = document.querySelector('.output-container');
+            const containerRect = container.getBoundingClientRect();
+            const offsetY = e.clientY - containerRect.top;
+            const percentage = (offsetY / containerRect.height) * 100;
+
+            if (percentage > 20 && percentage < 80) {
+                const sections = document.querySelectorAll('.output-section');
+                sections[0].style.flex = `0 0 ${percentage}%`;
+                sections[1].style.flex = `0 0 ${100 - percentage}%`;
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isOutputDragging = false;
         });
 
         // Examples dropdown
@@ -752,7 +871,7 @@ void caller(void) {
         }
 
         async function initCompiler() {
-            setStatus('Loading compiler (64MB)...', true);
+            setStatus('', false, true, 0);
             status.className = 'status';
             loadingBar.classList.add('active');
 
@@ -767,10 +886,54 @@ void caller(void) {
                     ? './clang.wasm'
                     : 'https://github.com/cs01/llvm-project/releases/latest/download/clang-nullsafe.wasm';
 
-                // Pre-load the WASM binary ONCE
+                // Pre-load the WASM binary ONCE with progress tracking
                 console.log('Downloading WASM binary...');
                 const wasmResponse = await fetch(wasmUrl);
-                wasmBinary = await wasmResponse.arrayBuffer();
+
+                if (!wasmResponse.ok) {
+                    throw new Error(`Failed to fetch WASM: ${wasmResponse.statusText}`);
+                }
+
+                const contentLength = wasmResponse.headers.get('content-length');
+                const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+                if (!wasmResponse.body) {
+                    wasmBinary = await wasmResponse.arrayBuffer();
+                } else {
+                    const reader = wasmResponse.body.getReader();
+                    const chunks = [];
+                    let loaded = 0;
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+
+                        if (done) break;
+
+                        chunks.push(value);
+                        loaded += value.length;
+
+                        if (total > 0) {
+                            const percent = Math.round((loaded / total) * 100);
+                            setStatus('', false, true, percent);
+                        } else {
+                            const mbLoaded = (loaded / 1024 / 1024).toFixed(1);
+                            setStatus(`Loading: ${mbLoaded}MB`, true);
+                        }
+                    }
+
+                    const chunksAll = new Uint8Array(loaded);
+                    let position = 0;
+                    for (const chunk of chunks) {
+                        chunksAll.set(chunk, position);
+                        position += chunk.length;
+                    }
+
+                    wasmBinary = chunksAll.buffer;
+                }
+
+                setStatus('', false, true, 100);
+                await new Promise(resolve => setTimeout(resolve, 400));
+
                 console.log('WASM binary loaded:', wasmBinary.byteLength, 'bytes');
 
                 // Now test with a worker to get the version
@@ -792,11 +955,23 @@ void caller(void) {
                 setTimeout(() => compile(), 500);
 
             } catch (error) {
-                status.textContent = 'Failed to load compiler';
+                setStatus('Failed to load compiler', false, false, 0);
                 status.className = 'status error';
                 loadingBar.classList.remove('active');
                 showToast('Failed to load compiler: ' + error.message, 4000);
                 console.error('Failed to load Clang WASM:', error);
+
+                const errorDetails = `<span class="error">Failed to load compiler
+
+Error: ${error.message}
+
+Stack trace:
+${error.stack || 'No stack trace available'}
+
+Check the browser console for more details.</span>`;
+
+                outputNullsafe.innerHTML = errorDetails;
+                outputMainline.innerHTML = errorDetails;
             }
         }
 
@@ -878,7 +1053,9 @@ void caller(void) {
         }
 
         async function compileCode(code, extraFlags = []) {
+            console.log('=== compileCode called, creating worker ===');
             return new Promise((resolve, reject) => {
+                console.log('Creating new Worker from compiler-worker.js');
                 const worker = new Worker('compiler-worker.js');
 
                 let stdout = '';
@@ -893,10 +1070,12 @@ void caller(void) {
                 }, 30000);
 
                 worker.onmessage = function(e) {
+                    console.log('=== Main thread received message from worker:', e.data.type, e.data);
                     const { type, text, error, exitCode } = e.data;
 
                     if (type === 'ready') {
                         // Worker is ready, send compile request
+                        console.log('Worker ready, sending compile request');
                         worker.postMessage({
                             type: 'compile',
                             code,
@@ -912,6 +1091,7 @@ void caller(void) {
                         worker.terminate();
                         resolve({ stdout, stderr, exitCode });
                     } else if (type === 'error') {
+                        console.error('=== Worker sent error message:', error);
                         completed = true;
                         clearTimeout(timeout);
                         worker.terminate();
@@ -919,14 +1099,19 @@ void caller(void) {
                     }
                 };
 
-                worker.onerror = function(error) {
+                worker.onerror = function(errorEvent) {
+                    console.error('=== Worker onerror fired:', errorEvent);
+                    console.error('Error message:', errorEvent.message);
+                    console.error('Error filename:', errorEvent.filename);
+                    console.error('Error lineno:', errorEvent.lineno);
                     completed = true;
                     clearTimeout(timeout);
                     worker.terminate();
-                    reject(error);
+                    reject(new Error(`Worker error: ${errorEvent.message} at ${errorEvent.filename}:${errorEvent.lineno}`));
                 };
 
                 // Send the pre-loaded WASM binary to the worker
+                console.log('Sending load message to worker with scriptUrl:', scriptUrl);
                 worker.postMessage({
                     type: 'load',
                     scriptUrl,
