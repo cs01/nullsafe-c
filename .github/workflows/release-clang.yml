@@ -1,0 +1,83 @@
+name: Create Clang Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Linux artifact
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: build-clang.yml
+          commit: ${{ github.sha }}
+          name: clang-nullsafe-linux-x86_64
+          path: artifacts/
+
+      - name: Download macOS artifact
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: build-clang.yml
+          commit: ${{ github.sha }}
+          name: clang-nullsafe-macos-universal
+          path: artifacts/
+
+      - name: Download Windows artifact
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: build-clang.yml
+          commit: ${{ github.sha }}
+          name: clang-nullsafe-windows-x86_64
+          path: artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/clang-nullsafe-linux-x86_64.tar.gz
+            artifacts/clang-nullsafe-macos-universal.tar.gz
+            artifacts/clang-nullsafe-windows-x86_64.tar.gz
+          body: |
+            ## Null-Safe Clang Binary Release
+
+            This release contains the Null-Safe Clang compiler and clangd language server for Linux, macOS, and Windows.
+
+            ### What's included:
+            - `clang` - The Null-Safe C compiler
+            - `clangd` - Language server for IDE integration (VSCode, vim, etc.)
+
+            ### Installation:
+
+            **Linux / macOS:**
+            ```bash
+            tar -xzf clang-nullsafe-<platform>.tar.gz
+            export PATH=$PWD/bin:$PATH
+            clang --version
+            ```
+
+            **Windows:**
+            ```bash
+            tar -xzf clang-nullsafe-windows-x86_64.tar.gz
+            # Add bin/ directory to your PATH
+            clang --version
+            ```
+
+            ### Usage:
+            ```bash
+            # Compile with null-safety warnings (default)
+            clang mycode.c
+
+            # Promote warnings to errors
+            clang -Werror=nullability mycode.c
+
+            # Disable null-safety checking
+            clang -fno-strict-nullability mycode.c
+            ```
+
+            See the [README](https://github.com/cs01/llvm-project/blob/null-safe-c-dev/README.md) for full documentation.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
