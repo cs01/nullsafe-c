@@ -42,7 +42,7 @@ jobs:
           cd build-wasm
           emcmake cmake -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" \
+            -DLLVM_ENABLE_PROJECTS="clang" \
             -DLLVM_TARGETS_TO_BUILD="WebAssembly" \
             -DLLVM_ENABLE_THREADS=OFF \
             -DLLVM_ENABLE_EH=OFF \
@@ -59,24 +59,20 @@ jobs:
             -DCMAKE_EXE_LINKER_FLAGS="-sEXPORTED_RUNTIME_METHODS=callMain -sEXIT_RUNTIME=0 -sALLOW_MEMORY_GROWTH=1" \
             ../llvm
 
-      - name: Build Null-Safe Clang and clangd WASM
+      - name: Build Null-Safe Clang WASM
         run: |
           cd build-wasm
-          ninja clang clangd
+          ninja clang
 
       - name: Prepare artifacts
         run: |
           mkdir -p artifacts
           cp build-wasm/bin/clang.wasm artifacts/clang-nullsafe.wasm
           cp build-wasm/bin/clang.js artifacts/clang-nullsafe.js
-          cp build-wasm/bin/clangd.wasm artifacts/clangd-nullsafe.wasm
-          cp build-wasm/bin/clangd.js artifacts/clangd-nullsafe.js
 
           # Compress for better download speeds
           gzip -k artifacts/clang-nullsafe.wasm
           gzip -k artifacts/clang-nullsafe.js
-          gzip -k artifacts/clangd-nullsafe.wasm
-          gzip -k artifacts/clangd-nullsafe.js
 
           ls -lh artifacts/
 
@@ -95,20 +91,14 @@ jobs:
             artifacts/clang-nullsafe.js
             artifacts/clang-nullsafe.wasm.gz
             artifacts/clang-nullsafe.js.gz
-            artifacts/clangd-nullsafe.wasm
-            artifacts/clangd-nullsafe.js
-            artifacts/clangd-nullsafe.wasm.gz
-            artifacts/clangd-nullsafe.js.gz
           body: |
             ## Null-Safe Clang Playground WASM Files
 
-            This release contains the WebAssembly build of Null-Safe Clang and clangd for use in the browser playground.
+            This release contains the WebAssembly build of Null-Safe Clang for use in the browser playground.
 
             ### Files:
             - `clang-nullsafe.wasm` - WebAssembly compiler binary (~63MB)
             - `clang-nullsafe.js` - Emscripten JavaScript glue code
-            - `clangd-nullsafe.wasm` - WebAssembly language server binary (~80MB)
-            - `clangd-nullsafe.js` - Emscripten JavaScript glue code for clangd
             - `*.gz` - Compressed versions for faster downloads
 
             ### Usage:
