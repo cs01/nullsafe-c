@@ -25,22 +25,23 @@ jobs:
           cd build
           cmake -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DLLVM_ENABLE_PROJECTS="clang" \
+            -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" \
             -DLLVM_TARGETS_TO_BUILD="X86" \
             -DLLVM_ENABLE_ASSERTIONS=OFF \
             -DCMAKE_INSTALL_PREFIX=../install \
             ../llvm
 
-      - name: Build Clang
+      - name: Build Clang and clangd
         run: |
           cd build
-          ninja clang
+          ninja clang clangd
 
-      - name: Install Clang
+      - name: Install Clang and clangd
         run: |
           cd build
           ninja install-clang
           ninja install-clang-headers
+          ninja install-clangd
 
       - name: Package binaries
         run: |
@@ -60,7 +61,11 @@ jobs:
           body: |
             ## Null-Safe Clang Binary Release
 
-            This release contains the Null-Safe Clang compiler for Linux x86_64.
+            This release contains the Null-Safe Clang compiler and clangd language server for Linux x86_64.
+
+            ### What's included:
+            - `clang` - The Null-Safe C compiler
+            - `clangd` - Language server for IDE integration (VSCode, vim, etc.)
 
             ### Installation:
             ```bash
@@ -102,22 +107,23 @@ jobs:
           cd build
           cmake -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DLLVM_ENABLE_PROJECTS="clang" \
+            -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" \
             -DLLVM_TARGETS_TO_BUILD="AArch64;X86" \
             -DLLVM_ENABLE_ASSERTIONS=OFF \
             -DCMAKE_INSTALL_PREFIX=../install \
             ../llvm
 
-      - name: Build Clang
+      - name: Build Clang and clangd
         run: |
           cd build
-          ninja clang
+          ninja clang clangd
 
-      - name: Install Clang
+      - name: Install Clang and clangd
         run: |
           cd build
           ninja install-clang
           ninja install-clang-headers
+          ninja install-clangd
 
       - name: Package binaries
         run: |
@@ -137,7 +143,11 @@ jobs:
           body: |
             ## Null-Safe Clang Binary Release (macOS)
 
-            This release contains the Null-Safe Clang compiler for macOS (Intel and Apple Silicon).
+            This release contains the Null-Safe Clang compiler and clangd language server for macOS (Intel and Apple Silicon).
+
+            ### What's included:
+            - `clang` - The Null-Safe C compiler
+            - `clangd` - Language server for IDE integration (VSCode, vim, etc.)
 
             ### Installation:
             ```bash
