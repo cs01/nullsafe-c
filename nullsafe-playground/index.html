@@ -553,12 +553,12 @@
             </div>
             <div class="output-container">
                 <div class="output-section">
-                    <div class="output-section-header">Null-Safe Clang (with null-safety warnings)</div>
+                    <div class="output-section-header">With Null Warnings</div>
                     <div id="output-nullsafe" class="output-content"></div>
                 </div>
                 <div class="output-divider" id="outputDivider"></div>
                 <div class="output-section">
-                    <div class="output-section-header">Null-Safe Clang (warnings suppressed with -Wno-nullability)</div>
+                    <div class="output-section-header">Without Null Warnings</div>
                     <div id="output-mainline" class="output-content"></div>
                 </div>
             </div>
@@ -931,10 +931,13 @@ int main(void) {
                 const nullsafeCmd = `$ clang ${baseArgs}${nullsafeFlags.length ? ' ' + nullsafeFlags.join(' ') : ''} input.c`;
                 const mainlineCmd = `$ clang ${baseArgs}${mainlineFlags.length ? ' ' + mainlineFlags.join(' ') : ''} input.c`;
 
-                // Update headers with compiler names
+                // Update headers with clearer titles
                 const headers = document.querySelectorAll('.output-section-header');
-                headers[0].textContent = `Null-Safe Clang ${clangVersion} (with null-safety warnings)`;
-                headers[1].textContent = `Null-Safe Clang ${clangVersion} (warnings suppressed with -Wno-nullability)`;
+                headers[0].textContent = `With Null Warnings (v${clangVersion})`;
+                headers[1].textContent = `Without Null Warnings (v${clangVersion})`;
+
+                // Count nullability warnings to detect missed bugs
+                const nullWarningCount = (nullsafeResult.stderr.match(/\[-Wnullability\]/g) || []).length;
 
                 // Display null-safe results with command
                 if (nullsafeResult.stdout || nullsafeResult.stderr) {
@@ -943,11 +946,16 @@ int main(void) {
                     outputNullsafe.textContent = nullsafeCmd + '\n✓ No errors or warnings';
                 }
 
-                // Display mainline results with command
+                // Display mainline results with command and comparison
                 if (mainlineResult.stdout || mainlineResult.stderr) {
                     outputMainline.textContent = mainlineCmd + '\n' + mainlineResult.stderr + mainlineResult.stdout;
                 } else {
-                    outputMainline.textContent = mainlineCmd + '\n✓ No errors or warnings';
+                    // No warnings suppressed, but check if null-safe had warnings
+                    if (nullWarningCount > 0) {
+                        outputMainline.textContent = mainlineCmd + '\n✓ No errors or warnings\n\n⚠️  Missed ' + nullWarningCount + ' null safety bug' + (nullWarningCount !== 1 ? 's' : '') + ' (see above)';
+                    } else {
+                        outputMainline.textContent = mainlineCmd + '\n✓ No errors or warnings';
+                    }
                 }
 
                 // Calculate stats from null-safe results
@@ -957,6 +965,7 @@ int main(void) {
                 let stats = [];
                 if (errorCount > 0) stats.push(`${errorCount} error${errorCount !== 1 ? 's' : ''}`);
                 if (warningCount > 0) stats.push(`${warningCount} warning${warningCount !== 1 ? 's' : ''}`);
+                if (nullWarningCount > 0) stats.push(`(${nullWarningCount} null bug${nullWarningCount !== 1 ? 's' : ''})`);
                 stats.push(`${duration}ms`);
 
                 outputStats.textContent = stats.join(' • ');
@@ -964,8 +973,9 @@ int main(void) {
                 status.textContent = 'Ready to compile';
                 status.className = 'status ready';
             } catch (error) {
-                outputNullsafe.innerHTML = `<span class="error">Compilation failed: ${error.message}</span>`;
-                outputMainline.innerHTML = `<span class="error">Compilation failed: ${error.message}</span>`;
+                const errorMsg = error.message || String(error);
+                outputNullsafe.innerHTML = `<span class="error">Compilation failed: ${errorMsg}\n\nCheck console for details.</span>`;
+                outputMainline.innerHTML = `<span class="error">Compilation failed: ${errorMsg}\n\nCheck console for details.</span>`;
                 status.textContent = 'Compilation error';
                 status.className = 'status error';
                 outputStats.textContent = '✗ Failed';
@@ -997,9 +1007,8 @@ int main(void) {
                     captureOutput = true;
 
                     try {
-                        // Build command line arguments
+                        // Build command line arguments (skip argv[0] for callMain)
                         const args = [
-                            'clang',  // argv[0]
                             '-fsyntax-only',
                             '--target=wasm32-unknown-emscripten',
                             ...extraFlags,
@@ -1008,34 +1017,13 @@ int main(void) {
 
                         console.log('Compiling with args:', args);
 
-                        // Allocate memory for argv array
-                        const argc = args.length;
-                        const argvPtrs = [];
-
-                        // Allocate strings and collect pointers
-                        for (let i = 0; i < argc; i++) {
-                            const strPtr = Module.allocateUTF8(args[i]);
-                            argvPtrs.push(strPtr);
-                        }
-
-                        // Allocate argv array
-                        const argv = Module._malloc(argvPtrs.length * 4);
-                        for (let i = 0; i < argvPtrs.length; i++) {
-                            Module.HEAP32[(argv >> 2) + i] = argvPtrs[i];
-                        }
-
-                        // Call main directly
-                        const exitCode = Module._main(argc, argv);
+                        // Use callMain which handles argv properly
+                        const exitCode = Module.callMain(args);
                         console.log('Clang exit code:', exitCode);
-
-                        // Free allocated memory
-                        for (let i = 0; i < argvPtrs.length; i++) {
-                            Module._free(argvPtrs[i]);
-                        }
-                        Module._free(argv);
 
                     } catch (e) {
                         console.log('Clang execution error:', e);
+                        throw e;  // Re-throw to be caught by outer catch
                     }
 
                     // Disable capture
