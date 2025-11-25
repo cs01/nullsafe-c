@@ -314,17 +314,6 @@
             background: var(--accent-blue);
         }
 
-        .divider::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 3px;
-            height: 40px;
-            background: var(--bg-primary);
-            border-radius: 2px;
-        }
 
         #editor-wrapper {
             flex: 1;
@@ -935,28 +924,50 @@ void for_check(const char* input) {
         }
 
         // Resizable panes
+        let isDraggingOutput = false;
+
         divider.addEventListener('mousedown', (e) => {
             isDragging = true;
             e.preventDefault();
         });
 
+        // Output divider resizing
+        outputDivider.addEventListener('mousedown', (e) => {
+            isDraggingOutput = true;
+            e.preventDefault();
+        });
+
         document.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
+            if (isDragging) {
+                const container = document.querySelector('.main-container');
+                const containerRect = container.getBoundingClientRect();
+                const offsetX = e.clientX - containerRect.left;
+                const percentage = (offsetX / containerRect.width) * 100;
 
-            const container = document.querySelector('.main-container');
-            const containerRect = container.getBoundingClientRect();
-            const offsetX = e.clientX - containerRect.left;
-            const percentage = (offsetX / containerRect.width) * 100;
+                if (percentage > 20 && percentage < 80) {
+                    const panes = document.querySelectorAll('.pane');
+                    panes[0].style.flex = `0 0 ${percentage}%`;
+                    panes[1].style.flex = `0 0 ${100 - percentage}%`;
+                }
+            }
 
-            if (percentage > 20 && percentage < 80) {
-                const panes = document.querySelectorAll('.pane');
-                panes[0].style.flex = `0 0 ${percentage}%`;
-                panes[1].style.flex = `0 0 ${100 - percentage}%`;
+            if (isDraggingOutput) {
+                const container = document.querySelector('.output-container');
+                const containerRect = container.getBoundingClientRect();
+                const offsetY = e.clientY - containerRect.top;
+                const percentage = (offsetY / containerRect.height) * 100;
+
+                if (percentage > 20 && percentage < 80) {
+                    const sections = document.querySelectorAll('.output-section');
+                    sections[0].style.flex = `0 0 ${percentage}%`;
+                    sections[1].style.flex = `0 0 ${100 - percentage}%`;
+                }
             }
         });
 
         document.addEventListener('mouseup', () => {
             isDragging = false;
+            isDraggingOutput = false;
         });
 
         // Examples dropdown
