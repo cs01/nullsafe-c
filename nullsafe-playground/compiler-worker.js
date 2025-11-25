@@ -1,0 +1,124 @@
+// Web Worker for running Clang WASM compiler
+// This worker is terminated and recreated for each compilation to avoid
+// LLVM signal handler registration issues
+
+let isReady = false;
+
+// Handle messages from main thread
+self.onmessage = function(e) {
+    const { type, ...data } = e.data;
+
+    if (type === 'load') {
+        // Configure Module BEFORE loading clang.js
+        // Emscripten will check if Module exists and merge with it
+        self.Module = {
+            print: function(text) {
+                self.postMessage({ type: 'stdout', text });
+            },
+            printErr: function(text) {
+                self.postMessage({ type: 'stderr', text });
+            },
+            noInitialRun: true,
+            postRun: [function() {
+                // postRun happens AFTER runtime initialization
+                console.log('Worker: postRun called');
+                console.log('Worker: Checking what exists on Module:', Object.keys(self.Module).filter(k => k.startsWith('FS') || k === 'FS'));
+
+                // Try different FS locations
+                const FS = self.Module.FS || self.FS || (typeof FS !== 'undefined' ? FS : null);
+                console.log('Worker: FS found?', !!FS);
+
+                if (FS) {
+                    console.log('Worker: FS.initialized?', FS.initialized);
+                    isReady = true;
+                    self.postMessage({ type: 'ready' });
+                } else {
+                    // Emscripten might attach FS later, poll for it
+                    let attempts = 0;
+                    const checkFS = setInterval(() => {
+                        attempts++;
+                        const fsNow = self.Module.FS || self.FS || (typeof FS !== 'undefined' ? FS : null);
+                        console.log(`Worker: Polling for FS (attempt ${attempts}):`, !!fsNow);
+
+                        if (fsNow) {
+                            clearInterval(checkFS);
+                            isReady = true;
+                            console.log('Worker: FS now available, sending ready');
+                            self.postMessage({ type: 'ready' });
+                        } else if (attempts > 100) {
+                            clearInterval(checkFS);
+                            console.error('Worker: Gave up waiting for FS');
+                            self.postMessage({
+                                type: 'error',
+                                error: 'Filesystem never became available'
+                            });
+                        }
+                    }, 100);
+                }
+            }]
+        };
+
+        // Load the Emscripten-generated JavaScript
+        try {
+            console.log('Worker: Loading script from', data.scriptUrl);
+            importScripts(data.scriptUrl);
+            console.log('Worker: Script loaded');
+        } catch (error) {
+            console.error('Worker: Failed to load script', error);
+            self.postMessage({
+                type: 'error',
+                error: `Failed to load compiler: ${error.message}`
+            });
+        }
+    } else if (type === 'compile') {
+        const FS = self.Module?.FS || self.FS;
+
+        if (!isReady || !FS) {
+            self.postMessage({
+                type: 'error',
+                error: 'Compiler not ready - FS not available'
+            });
+            return;
+        }
+
+        try {
+            const { code, extraFlags = [] } = data;
+            const inputFile = 'input.c';
+
+            // Write source file
+            FS.writeFile(inputFile, code);
+
+            // Build arguments
+            const args = [
+                '-fsyntax-only',
+                '--target=wasm32-unknown-emscripten',
+                ...extraFlags,
+                inputFile
+            ];
+
+            console.log('Worker compiling with args:', args);
+
+            // Run compiler
+            const exitCode = self.Module.callMain(args);
+
+            // Clean up
+            try {
+                FS.unlink(inputFile);
+            } catch (e) {
+                // Ignore
+            }
+
+            // Send completion
+            self.postMessage({
+                type: 'complete',
+                exitCode
+            });
+
+        } catch (error) {
+            self.postMessage({
+                type: 'error',
+                error: error.message || String(error)
+            });
+        }
+    }
+};

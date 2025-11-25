@@ -199,6 +199,45 @@
             50% { opacity: 0.5; }
         }
 
+        .loading-spinner {
+            display: inline-flex;
+            gap: 3px;
+            align-items: flex-end;
+            height: 14px;
+        }
+
+        .loading-bar {
+            width: 3px;
+            background: white;
+            border-radius: 2px;
+            animation: loading-bounce 0.8s ease-in-out infinite;
+        }
+
+        .loading-bar:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .loading-bar:nth-child(2) {
+            animation-delay: 0.15s;
+        }
+
+        .loading-bar:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        @keyframes loading-bounce {
+            0%, 60%, 100% {
+                height: 6px;
+            }
+            30% {
+                height: 14px;
+            }
+        }
+
+        .status:has(.loading-spinner)::before {
+            display: none;
+        }
+
         .status.ready { color: var(--success); }
         .status.compiling { color: var(--warning); }
         .status.error { color: var(--error); }
@@ -294,8 +333,8 @@
             font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
             font-size: 14px;
             line-height: 1.5;
-            background: transparent;
-            color: transparent;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             border: none;
             outline: none;
             resize: none;
@@ -310,34 +349,6 @@
             position: relative;
             overflow: hidden;
         }
-
-        #editor-highlight {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            padding: 20px;
-            font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
-            font-size: 14px;
-            line-height: 1.5;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            overflow-y: auto;
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        /* Syntax highlighting colors - VS Code Dark+ theme */
-        .hljs-keyword { color: #569cd6; }  /* Blue for keywords */
-        .hljs-type { color: #4ec9b0; }     /* Teal for types */
-        .hljs-string { color: #ce9178; }   /* Orange for strings */
-        .hljs-number { color: #b5cea8; }   /* Light green for numbers */
-        .hljs-comment { color: #6a9955; font-style: italic; }  /* Green for comments */
-        .hljs-function { color: #dcdcaa; } /* Yellow for functions */
-        .hljs-preprocessor { color: #c586c0; }  /* Purple for preprocessor */
-        .hljs-operator { color: #d4d4d4; }
-        .hljs-punctuation { color: #d4d4d4; }
 
         #output {
             flex: 1;
@@ -525,7 +536,14 @@
             Share
         </button>
 
-        <span id="status" class="status">Initializing compiler...</span>
+        <span id="status" class="status">
+            <span class="loading-spinner">
+                <span class="loading-bar"></span>
+                <span class="loading-bar"></span>
+                <span class="loading-bar"></span>
+            </span>
+            Initializing compiler...
+        </span>
     </div>
 
     <div class="main-container">
@@ -537,7 +555,6 @@
                 </div>
             </div>
             <div id="editor-wrapper">
-                <div id="editor-highlight"></div>
                 <textarea id="editor" spellcheck="false" placeholder="Write your C code here..."></textarea>
             </div>
         </div>
@@ -569,7 +586,6 @@
 
     <script>
         const editor = document.getElementById('editor');
-        const editorHighlight = document.getElementById('editor-highlight');
         const outputNullsafe = document.getElementById('output-nullsafe');
         const outputMainline = document.getElementById('output-mainline');
         const compileBtn = document.getElementById('compileBtn');
@@ -581,78 +597,6 @@
         const outputStats = document.getElementById('outputStats');
         const divider = document.getElementById('divider');
         const outputDivider = document.getElementById('outputDivider');
-
-        // Simple C syntax highlighter
-        function highlightCode(code) {
-            // Escape HTML
-            code = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-            // Store strings and comments temporarily to avoid highlighting inside them
-            const protected = [];
-            let index = 0;
-
-            // Protect multi-line comments
-            code = code.replace(/\/\*[\s\S]*?\*\//g, match => {
-                const placeholder = `___PROTECTED_${index}___`;
-                protected.push(`<span class="hljs-comment">${match}</span>`);
-                index++;
-                return placeholder;
-            });
-
-            // Protect single-line comments
-            code = code.replace(/\/\/.*/g, match => {
-                const placeholder = `___PROTECTED_${index}___`;
-                protected.push(`<span class="hljs-comment">${match}</span>`);
-                index++;
-                return placeholder;
-            });
-
-            // Protect strings
-            code = code.replace(/"([^"\\]|\\.)*"/g, match => {
-                const placeholder = `___PROTECTED_${index}___`;
-                protected.push(`<span class="hljs-string">${match}</span>`);
-                index++;
-                return placeholder;
-            });
-
-            // Now safely highlight everything else
-
-            // Preprocessor directives
-            code = code.replace(/(^|\n)(#\s*(?:include|define|undef|ifdef|ifndef|if|else|elif|endif|pragma|error|warning|line)\b[^\n]*)/g,
-                (match, newline, directive) => `${newline}<span class="hljs-preprocessor">${directive}</span>`);
-
-            // Numbers
-            code = code.replace(/\b(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?[fFlLuU]?\b/g,
-                match => `<span class="hljs-number">${match}</span>`);
-
-            // Keywords
-            code = code.replace(/\b(auto|break|case|char|const|continue|default|do|double|else|enum|extern|float|for|goto|if|inline|int|long|register|restrict|return|short|signed|sizeof|static|struct|switch|typedef|union|unsigned|void|volatile|while|_Bool|_Complex|_Imaginary|_Nullable|_Nonnull)\b/g,
-                match => `<span class="hljs-keyword">${match}</span>`);
-
-            // Function names
-            code = code.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*(?=\()/g,
-                (match, name) => `<span class="hljs-function">${name}</span> (`);
-
-            // Restore protected strings and comments
-            for (let i = 0; i < protected.length; i++) {
-                code = code.replace(`___PROTECTED_${i}___`, protected[i]);
-            }
-
-            return code;
-        }
-
-        function updateHighlight() {
-            const code = editor.value;
-            editorHighlight.innerHTML = highlightCode(code);
-            // Sync scroll
-            editorHighlight.scrollTop = editor.scrollTop;
-        }
-
-        // Update highlighting on input
-        editor.addEventListener('input', updateHighlight);
-        editor.addEventListener('scroll', () => {
-            editorHighlight.scrollTop = editor.scrollTop;
-        });
 
         const examples = {
             'null-check': `void process(int* data) {
@@ -703,12 +647,11 @@ int main(void) {
 
         const defaultCode = examples['null-check'];
         editor.value = defaultCode;
-        updateHighlight(); // Initial highlight
 
-        let ClangModule = null;
         let clangVersion = '';
         let isCompiling = false;
         let isDragging = false;
+        let scriptUrl = null;  // URL for worker to load clang.js
 
         // Toast notification
         function showToast(message, duration = 2000) {
@@ -717,6 +660,15 @@ int main(void) {
             setTimeout(() => {
                 toast.classList.remove('show');
             }, duration);
+        }
+
+        // Status update helper
+        function setStatus(message, showSpinner = false) {
+            if (showSpinner) {
+                status.innerHTML = `<span class="loading-spinner"><span class="loading-bar"></span><span class="loading-bar"></span><span class="loading-bar"></span></span> ${message}`;
+            } else {
+                status.textContent = message;
+            }
         }
 
         // Resizable panes
@@ -749,7 +701,6 @@ int main(void) {
             const example = e.target.value;
             if (example && examples[example]) {
                 editor.value = examples[example];
-                updateHighlight(); // Update highlighting
                 showToast('Example loaded!');
                 // Don't reset - keep the selection showing
             }
@@ -779,7 +730,6 @@ int main(void) {
                 try {
                     const code = decodeURIComponent(escape(atob(encodedCode)));
                     editor.value = code;
-                    updateHighlight();
                     showToast('Code loaded from URL!');
                 } catch (err) {
                     console.error('Failed to decode URL code:', err);
@@ -788,93 +738,84 @@ int main(void) {
             }
         }
 
-        let capturedStdout = '';
-        let capturedStderr = '';
-        let captureOutput = false;
-
         async function initCompiler() {
-            status.textContent = 'Loading compiler (64MB)...';
+            setStatus('Loading compiler (64MB)...', true);
             status.className = 'status';
             loadingBar.classList.add('active');
 
-            try {
-                // Configure Module before loading clang.js
-                window.Module = {
-                    print: function(text) {
-                        if (captureOutput) {
-                            capturedStdout += text + '\n';
-                            console.log('[captured stdout]', text);
-                        } else {
-                            console.log('[stdout]', text);
-                        }
-                    },
-                    printErr: function(text) {
-                        if (captureOutput) {
-                            capturedStderr += text + '\n';
-                            console.log('[captured stderr]', text);
-                        } else {
-                            console.log('[stderr]', text);
-                        }
-                    },
-                    noInitialRun: true,
-                    noExitRuntime: true,
-                    arguments: [],
-                    onRuntimeInitialized: function() {
-                        ClangModule = window.Module;
-                        console.log('Runtime initialized!');
+            let capturedStdout = '';
+            let capturedStderr = '';
 
-                        // Get compiler version
-                        captureOutput = true;
+            try {
+                // Determine script URL
+                const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                scriptUrl = isDev
+                    ? './clang.js'
+                    : 'https://github.com/cs01/llvm-project/releases/latest/download/clang-nullsafe.js';
+
+                // Create a temporary worker to get the version
+                const worker = new Worker('compiler-worker.js');
+
+                let versionResolved = false;
+                let loadTimeout = setTimeout(() => {
+                    if (!versionResolved) {
+                        worker.terminate();
+                        throw new Error('Compiler initialization timeout');
+                    }
+                }, 60000); // 60 second timeout
+
+                worker.onmessage = function(e) {
+                    const { type, text, error } = e.data;
+
+                    if (type === 'ready') {
                         capturedStdout = '';
                         capturedStderr = '';
+                        worker.postMessage({
+                            type: 'compile',
+                            code: 'int main() { return 0; }',
+                            extraFlags: ['--version']
+                        });
+                    } else if (type === 'stdout') {
+                        capturedStdout += text + '\n';
+                    } else if (type === 'stderr') {
+                        capturedStderr += text + '\n';
+                    } else if (type === 'complete') {
+                        if (!versionResolved) {
+                            versionResolved = true;
+                            clearTimeout(loadTimeout);
 
-                        try {
-                            Module.callMain(['--version']);
                             const versionOutput = capturedStdout + capturedStderr;
-                            console.log('Clang version:', versionOutput);
-
-                            // Extract and store version
                             const versionMatch = versionOutput.match(/clang version ([^\s]+)/);
                             if (versionMatch) {
                                 clangVersion = versionMatch[1];
                                 document.querySelector('.output-section-header').textContent =
                                     `Null-Safe Clang ${clangVersion}`;
                             }
-                        } catch (e) {
-                            console.error('Failed to get version:', e);
+
+                            worker.terminate();
+
+                            status.textContent = 'Ready to compile';
+                            status.className = 'status ready';
+                            compileBtn.disabled = false;
+                            loadingBar.classList.remove('active');
+                            showToast('Compiler loaded successfully!');
+
+                            setTimeout(() => compile(), 500);
                         }
-
-                        captureOutput = false;
-                        capturedStdout = '';
-                        capturedStderr = '';
-
-                        status.textContent = 'Ready to compile';
-                        status.className = 'status ready';
-                        compileBtn.disabled = false;
-                        loadingBar.classList.remove('active');
-                        showToast('Compiler loaded successfully!');
-                        console.log('Clang WASM module loaded successfully');
-
-                        // Auto-compile the initial example
-                        setTimeout(() => compile(), 500);
+                    } else if (type === 'error') {
+                        clearTimeout(loadTimeout);
+                        worker.terminate();
+                        throw new Error(error);
                     }
                 };
 
-                const script = document.createElement('script');
-                // Try to load from GitHub releases first, fall back to local for development
-                const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                const wasmPath = isDev
-                    ? './clang.js'
-                    : 'https://github.com/cs01/llvm-project/releases/latest/download/clang-nullsafe.js';
-
-                script.src = wasmPath;
-                script.onerror = () => {
-                    status.textContent = 'Failed to load compiler';
-                    status.className = 'status error';
-                    loadingBar.classList.remove('active');
-                    showToast('Failed to load compiler script', 4000);
+                worker.onerror = function(error) {
+                    clearTimeout(loadTimeout);
+                    worker.terminate();
+                    throw error;
                 };
-                document.head.appendChild(script);
+
+                worker.postMessage({ type: 'load', scriptUrl });
 
             } catch (error) {
                 status.textContent = 'Failed to load compiler';
@@ -887,18 +828,9 @@ int main(void) {
 
         async function compile() {
             if (isCompiling) return;
-            if (!ClangModule) {
+            if (!scriptUrl) {
                 outputNullsafe.innerHTML = `<span class="error">Compiler not loaded yet. Please wait...</span>`;
                 outputMainline.innerHTML = `<span class="error">Compiler not loaded yet. Please wait...</span>`;
-                return;
-            }
-
-            // Check if Module.FS is available
-            const FS = window.Module?.FS || window.FS;
-            if (!FS) {
-                outputNullsafe.innerHTML = `<span class="error">Compiler filesystem not ready. Please wait...</span>`;
-                outputMainline.innerHTML = `<span class="error">Compiler filesystem not ready. Please wait...</span>`;
-                console.error('FS not available - Module.FS:', !!window.Module?.FS, 'window.FS:', !!window.FS);
                 return;
             }
 
@@ -989,58 +921,53 @@ int main(void) {
 
         async function compileCode(code, extraFlags = []) {
             return new Promise((resolve, reject) => {
-                try {
-                    const inputFile = 'input.c';
+                const worker = new Worker('compiler-worker.js');
 
-                    // Get FS
-                    const FS = window.Module?.FS || window.FS;
-                    if (!FS) {
-                        throw new Error('FS is not available');
+                let stdout = '';
+                let stderr = '';
+                let completed = false;
+
+                const timeout = setTimeout(() => {
+                    if (!completed) {
+                        worker.terminate();
+                        reject(new Error('Compilation timeout'));
                     }
+                }, 30000);
 
-                    // Write the file
-                    FS.writeFile(inputFile, code);
+                worker.onmessage = function(e) {
+                    const { type, text, error, exitCode } = e.data;
 
-                    // Reset and enable capture
-                    capturedStdout = '';
-                    capturedStderr = '';
-                    captureOutput = true;
-
-                    try {
-                        // Build command line arguments (skip argv[0] for callMain)
-                        const args = [
-                            '-fsyntax-only',
-                            '--target=wasm32-unknown-emscripten',
-                            ...extraFlags,
-                            'input.c'
-                        ];
-
-                        console.log('Compiling with args:', args);
-
-                        // Use callMain which handles argv properly
-                        const exitCode = Module.callMain(args);
-                        console.log('Clang exit code:', exitCode);
-
-                    } catch (e) {
-                        console.log('Clang execution error:', e);
-                        throw e;  // Re-throw to be caught by outer catch
+                    if (type === 'ready') {
+                        worker.postMessage({
+                            type: 'compile',
+                            code,
+                            extraFlags
+                        });
+                    } else if (type === 'stdout') {
+                        stdout += text + '\n';
+                    } else if (type === 'stderr') {
+                        stderr += text + '\n';
+                    } else if (type === 'complete') {
+                        completed = true;
+                        clearTimeout(timeout);
+                        worker.terminate();
+                        resolve({ stdout, stderr, exitCode });
+                    } else if (type === 'error') {
+                        completed = true;
+                        clearTimeout(timeout);
+                        worker.terminate();
+                        reject(new Error(error));
                     }
+                };
 
-                    // Disable capture
-                    captureOutput = false;
-
-                    try {
-                        FS.unlink(inputFile);
-                    } catch (e) {
-                        // Ignore
-                    }
-
-                    resolve({ stdout: capturedStdout, stderr: capturedStderr });
-                } catch (error) {
-                    captureOutput = false;
-                    console.error('compileCode error:', error);
+                worker.onerror = function(error) {
+                    completed = true;
+                    clearTimeout(timeout);
+                    worker.terminate();
                     reject(error);
-                }
+                };
+
+                worker.postMessage({ type: 'load', scriptUrl });
             });
         }
 
