@@ -997,22 +997,43 @@ int main(void) {
                     captureOutput = true;
 
                     try {
-                        // Use callMain if available (built with -sEXPORTED_RUNTIME_METHODS=callMain)
-                        if (Module.callMain) {
-                            // Build command line arguments
-                            const args = [
-                                '-fsyntax-only',
-                                '--target=wasm32-unknown-emscripten',
-                                ...extraFlags,
-                                'input.c'
-                            ];
-                            console.log('Compiling with args:', args);
-                            const exitCode = Module.callMain(args);
-                            console.log('Clang exit code:', exitCode);
-                        } else {
-                            console.error('Module.callMain not available!');
-                            throw new Error('Module.callMain not exported. Rebuild with -sEXPORTED_RUNTIME_METHODS=callMain');
+                        // Build command line arguments
+                        const args = [
+                            'clang',  // argv[0]
+                            '-fsyntax-only',
+                            '--target=wasm32-unknown-emscripten',
+                            ...extraFlags,
+                            'input.c'
+                        ];
+
+                        console.log('Compiling with args:', args);
+
+                        // Allocate memory for argv array
+                        const argc = args.length;
+                        const argvPtrs = [];
+
+                        // Allocate strings and collect pointers
+                        for (let i = 0; i < argc; i++) {
+                            const strPtr = Module.allocateUTF8(args[i]);
+                            argvPtrs.push(strPtr);
                         }
+
+                        // Allocate argv array
+                        const argv = Module._malloc(argvPtrs.length * 4);
+                        for (let i = 0; i < argvPtrs.length; i++) {
+                            Module.HEAP32[(argv >> 2) + i] = argvPtrs[i];
+                        }
+
+                        // Call main directly
+                        const exitCode = Module._main(argc, argv);
+                        console.log('Clang exit code:', exitCode);
+
+                        // Free allocated memory
+                        for (let i = 0; i < argvPtrs.length; i++) {
+                            Module._free(argvPtrs[i]);
+                        }
+                        Module._free(argv);
+
                     } catch (e) {
                         console.log('Clang execution error:', e);
                     }

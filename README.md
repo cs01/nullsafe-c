@@ -39,13 +39,13 @@ Null pointer dereferences are just one category of memory safety bugs. Here's ho
 
 ### What Gets Fixed
 
-| Safety Issue | Null-Safe Clang (null checking) | Standard C | Rust | Clang `-fbounds-safety` |
-|-------------|-------------|------------|------|-------------------------|
-| Null pointer dereferences | ✅ Fixed | ❌ Unsafe | ✅ Fixed | ❌ Unsafe |
+| Safety Issue | Standard C | Null-Safe Clang (null checking) | Clang `-fbounds-safety` | Rust |
+|-------------|------------|-------------|-------------------------|------|
+| Null pointer dereferences | ❌ Unsafe | ✅ Fixed | ❌ Unsafe | ✅ Fixed |
 | Buffer overflows | ❌ Unsafe | ❌ Unsafe | ✅ Fixed | ✅ Fixed |
-| Use-after-free | ❌ Unsafe | ❌ Unsafe | ✅ Fixed | ❌ Unsafe |
-| Double-free | ❌ Unsafe | ❌ Unsafe | ✅ Fixed | ❌ Unsafe |
-| Uninitialized memory | ❌ Unsafe | ❌ Unsafe | ✅ Fixed | ⚠️  Partial |
+| Use-after-free | ❌ Unsafe | ❌ Unsafe | ❌ Unsafe | ✅ Fixed |
+| Double-free | ❌ Unsafe | ❌ Unsafe | ❌ Unsafe | ✅ Fixed |
+| Uninitialized memory | ❌ Unsafe | ❌ Unsafe | ⚠️  Partial | ✅ Fixed |
 
 
 ### Why This Still Matters
