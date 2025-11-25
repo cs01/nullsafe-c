@@ -39,24 +39,23 @@ Null pointer dereferences are just one category of memory safety bugs. Here's ho
 
 ### What Gets Fixed
 
-| Safety Issue | Standard C | **Null-Safe Clang** (null checking) | Clang `-fbounds-safety` | Rust |
-|-------------|------------|:-----------------------------------:|-------------------------|------|
-| Null pointer dereferences | ❌ Unsafe | **✅ Fixed** | ❌ Unsafe | ✅ Fixed |
-| Buffer overflows | ❌ Unsafe | ❌ Unsafe | ✅ Fixed | ✅ Fixed |
-| Use-after-free | ❌ Unsafe | ❌ Unsafe | ❌ Unsafe | ✅ Fixed |
-| Double-free | ❌ Unsafe | ❌ Unsafe | ❌ Unsafe | ✅ Fixed |
-| Uninitialized memory | ❌ Unsafe | ❌ Unsafe | ⚠️  Partial | ✅ Fixed |
+| Safety Issue            | Standard C | **Null-Safe Clang** (null checking) |
+|-------------------------|------------|:-----------------------------------:|
+| Null pointer dereferences | ❌ Unsafe | **✅ Fixed**                        |
+| Buffer overflows        | ❌ Unsafe  | ❌ Unsafe                            |
+| Use-after-free          | ❌ Unsafe  | ❌ Unsafe                            |
+| Double-free             | ❌ Unsafe  | ❌ Unsafe                            |
+| Uninitialized memory    | ❌ Unsafe  | ❌ Unsafe                            |
 
 
-### Why This Still Matters
+### Why you still might want to try this
 
 While Null-Safe Clang doesn't solve all memory safety issues, null pointer dereferences are a significant problem:
 
-- One in four memory safety bugs involve null pointer dereferences ([Microsoft Security Response Center](https://github.com/microsoft/MSRC-Security-Research/blob/master/papers/2019/The%20Memory%20Safety%20Story.pdf))
-- Zero runtime overhead - nullability checks are compile-time only, no runtime checks inserted
+- Many memory safety bugs involve null pointer dereferences
 - Easier to adopt than rewriting in Rust (100% compatible with existing C code)
-- Incremental deployment (warnings by default, can enable per-file)
 - Complements other efforts (combine with `-fbounds-safety` for buffer safety)
+- Incremental deployment (warnings by default, can enable per-file)
 
 
 ## Usage
@@ -64,15 +63,7 @@ While Null-Safe Clang doesn't solve all memory safety issues, null pointer deref
 Basic usage (warnings enabled by default):
 ```bash
 clang mycode.c                          # Warnings for nullable dereferences
-```
-
-Promote warnings to errors:
-```bash
 clang -Werror=nullability mycode.c      # Treat nullability issues as errors
-```
-
-Disable strict nullability:
-```bash
 clang -fno-strict-nullability mycode.c  # Turn off nullability checking
 ```
 
@@ -92,15 +83,13 @@ void legacy_function(int* p) { ... }
 
 - Nullable-by-default: All pointers are `_Nullable` unless marked `_Nonnull`
 - Flow-sensitive narrowing: `if (p)` proves `p` is non-null in that scope
-- Smart invalidation: Assumes functions have side effects; use `__attribute__((pure))` or `__attribute__((const))` to preserve narrowing
 - Early-exit patterns: Understands `return`, `goto`, `break`, `continue`
-- Multi-level pointers: Works with `int**`, `int***`, etc.
 - Pointer arithmetic: `q = p + 1` preserves narrowing from `p`
-- Type checking: Through function calls, returns, and assignments
-- Typedef support: Nullability annotations work seamlessly with typedefs
+- Type checking through function calls, returns, and assignments
+- Works with Typedefs
+- Assumes functions have side effects (use `__attribute__((pure))` or `__attribute__((const))` to preserve narrowing)
 - Null-safe headers: Annotated C standard library in `clang/nullsafe-headers/`
-- IDE integration: Enhanced `clangd` with real-time nullability diagnostics
-- Real-world tested: Validated on cJSON, SQLite
+- IDE integration: `clangd` built from this fork has the same logic and warnings as clang
 
 ## How It Works
 

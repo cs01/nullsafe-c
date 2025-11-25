@@ -528,8 +528,8 @@
 
         <select id="examplesSelect" class="examples-select">
             <option value="null-check" selected>Null Check Example</option>
-            <option value="array">Array Safety</option>
-            <option value="function">Function Parameters</option>
+            <option value="function-invalidates">Function Invalidates Check</option>
+            <option value="nonnull-annotation">_Nonnull Annotations</option>
         </select>
 
         <button id="shareBtn" class="btn btn-secondary">
@@ -564,9 +564,6 @@
         <div class="pane">
             <div class="pane-header">
                 <span>Compiler Output</span>
-                <div class="pane-actions">
-                    <span id="outputStats" class="icon-btn" style="cursor: default;"></span>
-                </div>
             </div>
             <div class="output-container">
                 <div class="output-section">
@@ -594,7 +591,6 @@
         const shareBtn = document.getElementById('shareBtn');
         const loadingBar = document.getElementById('loadingBar');
         const toast = document.getElementById('toast');
-        const outputStats = document.getElementById('outputStats');
         const divider = document.getElementById('divider');
         const outputDivider = document.getElementById('outputDivider');
 
@@ -608,40 +604,29 @@
 void unsafe(int* data) {
     *data = 42;  // warning - data might be null!
 }`,
-            'array': `#include <stdlib.h>
+            'function-invalidates': `void modify(int** ptr);  // external function
 
-int main(void) {
-    int *arr = malloc(10 * sizeof(int));
-
-    arr[0] = 42;  // warning - malloc can return NULL
-
-    if (arr) {
-        arr[0] = 42;  // OK - arr is non-null here
-        free(arr);
-    }
-
-    return 0;
-}`,
-            'function': `void process(int *data) {
-    *data = 42;  // warning - data might be null
-}
-
-void process_safe(int *data) {
+void example(int* data) {
     if (data) {
-        *data = 42;  // OK - checked for null
-    }
-}
+        *data = 1;  // OK - checked
 
-void guaranteed(int * _Nonnull data) {
+        modify(&data);  // might modify data!
+
+        *data = 2;  // warning - data could be null now!
+    }
+}`,
+            'nonnull-annotation': `// Use _Nonnull to require non-null arguments
+void process_nonnull(int * _Nonnull data) {
     *data = 42;  // OK - caller must pass non-null
 }
 
-int main(void) {
-    int x = 0;
-    process(&x);
-    process_safe(&x);
-    guaranteed(&x);
-    return 0;
+void caller(void) {
+    int* nullable = 0;
+    int x = 10;
+
+    process_nonnull(0);        // error!
+    process_nonnull(nullable); // error!
+    process_nonnull(&x);       // OK
 }`
         };
 
@@ -652,6 +637,7 @@ int main(void) {
         let isCompiling = false;
         let isDragging = false;
         let scriptUrl = null;  // URL for worker to load clang.js
+        let wasmBinary = null;  // Pre-loaded WASM binary to share with workers
 
         // Toast notification
         function showToast(message, duration = 2000) {
@@ -743,9 +729,6 @@ int main(void) {
             status.className = 'status';
             loadingBar.classList.add('active');
 
-            let capturedStdout = '';
-            let capturedStderr = '';
-
             try {
                 // Determine script URL
                 const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -753,69 +736,33 @@ int main(void) {
                     ? './clang.js'
                     : 'https://github.com/cs01/llvm-project/releases/latest/download/clang-nullsafe.js';
 
-                // Create a temporary worker to get the version
-                const worker = new Worker('compiler-worker.js');
+                const wasmUrl = isDev
+                    ? './clang.wasm'
+                    : 'https://github.com/cs01/llvm-project/releases/latest/download/clang-nullsafe.wasm';
 
-                let versionResolved = false;
-                let loadTimeout = setTimeout(() => {
-                    if (!versionResolved) {
-                        worker.terminate();
-                        throw new Error('Compiler initialization timeout');
-                    }
-                }, 60000); // 60 second timeout
+                // Pre-load the WASM binary ONCE
+                console.log('Downloading WASM binary...');
+                const wasmResponse = await fetch(wasmUrl);
+                wasmBinary = await wasmResponse.arrayBuffer();
+                console.log('WASM binary loaded:', wasmBinary.byteLength, 'bytes');
 
-                worker.onmessage = function(e) {
-                    const { type, text, error } = e.data;
+                // Now test with a worker to get the version
+                const versionResult = await compileCode('int main() { return 0; }', ['--version']);
+                const versionOutput = versionResult.stdout + versionResult.stderr;
+                const versionMatch = versionOutput.match(/clang version ([^\s]+)/);
+                if (versionMatch) {
+                    clangVersion = versionMatch[1];
+                    document.querySelector('.output-section-header').textContent =
+                        `Null-Safe Clang ${clangVersion}`;
+                }
 
-                    if (type === 'ready') {
-                        capturedStdout = '';
-                        capturedStderr = '';
-                        worker.postMessage({
-                            type: 'compile',
-                            code: 'int main() { return 0; }',
-                            extraFlags: ['--version']
-                        });
-                    } else if (type === 'stdout') {
-                        capturedStdout += text + '\n';
-                    } else if (type === 'stderr') {
-                        capturedStderr += text + '\n';
-                    } else if (type === 'complete') {
-                        if (!versionResolved) {
-                            versionResolved = true;
-                            clearTimeout(loadTimeout);
+                status.textContent = 'Ready to compile';
+                status.className = 'status ready';
+                compileBtn.disabled = false;
+                loadingBar.classList.remove('active');
+                showToast('Compiler loaded successfully!');
 
-                            const versionOutput = capturedStdout + capturedStderr;
-                            const versionMatch = versionOutput.match(/clang version ([^\s]+)/);
-                            if (versionMatch) {
-                                clangVersion = versionMatch[1];
-                                document.querySelector('.output-section-header').textContent =
-                                    `Null-Safe Clang ${clangVersion}`;
-                            }
-
-                            worker.terminate();
-
-                            status.textContent = 'Ready to compile';
-                            status.className = 'status ready';
-                            compileBtn.disabled = false;
-                            loadingBar.classList.remove('active');
-                            showToast('Compiler loaded successfully!');
-
-                            setTimeout(() => compile(), 500);
-                        }
-                    } else if (type === 'error') {
-                        clearTimeout(loadTimeout);
-                        worker.terminate();
-                        throw new Error(error);
-                    }
-                };
-
-                worker.onerror = function(error) {
-                    clearTimeout(loadTimeout);
-                    worker.terminate();
-                    throw error;
-                };
-
-                worker.postMessage({ type: 'load', scriptUrl });
+                setTimeout(() => compile(), 500);
 
             } catch (error) {
                 status.textContent = 'Failed to load compiler';
@@ -840,7 +787,6 @@ int main(void) {
             status.className = 'status compiling';
             outputNullsafe.innerHTML = '';
             outputMainline.innerHTML = '';
-            outputStats.textContent = '';
             loadingBar.classList.add('active');
 
             const startTime = performance.now();
@@ -848,25 +794,23 @@ int main(void) {
             try {
                 const code = editor.value;
 
-                // Compile with null-safety enabled (default)
-                const nullsafeFlags = [];
-                const nullsafeResult = await compileCode(code, nullsafeFlags);
-
-                // Compile with nullability warnings suppressed (simulates mainline)
-                const mainlineFlags = ['-Wno-nullability'];
-                const mainlineResult = await compileCode(code, mainlineFlags);
+                // Compile both versions in parallel
+                const [nullsafeResult, mainlineResult] = await Promise.all([
+                    compileCode(code, []),
+                    compileCode(code, ['-Wno-nullability'])
+                ]);
 
                 const duration = (performance.now() - startTime).toFixed(0);
 
                 // Build command strings
                 const baseArgs = '-fsyntax-only --target=wasm32-unknown-emscripten';
-                const nullsafeCmd = `$ clang ${baseArgs}${nullsafeFlags.length ? ' ' + nullsafeFlags.join(' ') : ''} input.c`;
-                const mainlineCmd = `$ clang ${baseArgs}${mainlineFlags.length ? ' ' + mainlineFlags.join(' ') : ''} input.c`;
+                const nullsafeCmd = `$ clang ${baseArgs} input.c`;
+                const mainlineCmd = `$ clang ${baseArgs} -Wno-nullability input.c`;
 
                 // Update headers with clearer titles
                 const headers = document.querySelectorAll('.output-section-header');
-                headers[0].textContent = `With Null Warnings (v${clangVersion})`;
-                headers[1].textContent = `Without Null Warnings (v${clangVersion})`;
+                headers[0].textContent = `With Null Warnings (clang v${clangVersion})`;
+                headers[1].textContent = `Without Null Warnings (clang v${clangVersion})`;
 
                 // Count nullability warnings to detect missed bugs
                 const nullWarningCount = (nullsafeResult.stderr.match(/\[-Wnullability\]/g) || []).length;
@@ -890,18 +834,6 @@ int main(void) {
                     }
                 }
 
-                // Calculate stats from null-safe results
-                const errorCount = (nullsafeResult.stderr.match(/error:/g) || []).length;
-                const warningCount = (nullsafeResult.stderr.match(/warning:/g) || []).length;
-
-                let stats = [];
-                if (errorCount > 0) stats.push(`${errorCount} error${errorCount !== 1 ? 's' : ''}`);
-                if (warningCount > 0) stats.push(`${warningCount} warning${warningCount !== 1 ? 's' : ''}`);
-                if (nullWarningCount > 0) stats.push(`(${nullWarningCount} null bug${nullWarningCount !== 1 ? 's' : ''})`);
-                stats.push(`${duration}ms`);
-
-                outputStats.textContent = stats.join(' • ');
-
                 status.textContent = 'Ready to compile';
                 status.className = 'status ready';
             } catch (error) {
@@ -910,7 +842,6 @@ int main(void) {
                 outputMainline.innerHTML = `<span class="error">Compilation failed: ${errorMsg}\n\nCheck console for details.</span>`;
                 status.textContent = 'Compilation error';
                 status.className = 'status error';
-                outputStats.textContent = '✗ Failed';
                 console.error('Compilation error:', error);
             } finally {
                 isCompiling = false;
@@ -938,6 +869,7 @@ int main(void) {
                     const { type, text, error, exitCode } = e.data;
 
                     if (type === 'ready') {
+                        // Worker is ready, send compile request
                         worker.postMessage({
                             type: 'compile',
                             code,
@@ -967,7 +899,12 @@ int main(void) {
                     reject(error);
                 };
 
-                worker.postMessage({ type: 'load', scriptUrl });
+                // Send the pre-loaded WASM binary to the worker
+                worker.postMessage({
+                    type: 'load',
+                    scriptUrl,
+                    wasmBinary  // Share the pre-loaded WASM
+                });
             });
         }
 

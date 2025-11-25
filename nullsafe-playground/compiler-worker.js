@@ -10,7 +10,7 @@ self.onmessage = function(e) {
 
     if (type === 'load') {
         // Configure Module BEFORE loading clang.js
-        // Emscripten will check if Module exists and merge with it
+        // The main thread pre-loaded the WASM binary and is sharing it
         self.Module = {
             print: function(text) {
                 self.postMessage({ type: 'stdout', text });
@@ -19,10 +19,10 @@ self.onmessage = function(e) {
                 self.postMessage({ type: 'stderr', text });
             },
             noInitialRun: true,
+            wasmBinary: data.wasmBinary,  // Use the shared WASM binary
             postRun: [function() {
                 // postRun happens AFTER runtime initialization
                 console.log('Worker: postRun called');
-                console.log('Worker: Checking what exists on Module:', Object.keys(self.Module).filter(k => k.startsWith('FS') || k === 'FS'));
 
                 // Try different FS locations
                 const FS = self.Module.FS || self.FS || (typeof FS !== 'undefined' ? FS : null);
@@ -38,7 +38,6 @@ self.onmessage = function(e) {
                     const checkFS = setInterval(() => {
                         attempts++;
                         const fsNow = self.Module.FS || self.FS || (typeof FS !== 'undefined' ? FS : null);
-                        console.log(`Worker: Polling for FS (attempt ${attempts}):`, !!fsNow);
 
                         if (fsNow) {
                             clearInterval(checkFS);
