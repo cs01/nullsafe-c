@@ -17,7 +17,15 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build cmake build-essential
+          sudo apt-get install -y ninja-build cmake build-essential ccache
+
+      - name: Setup ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-linux-${{ github.sha }}
+          restore-keys: |
+            ccache-linux-
 
       - name: Configure build
         run: |
@@ -29,6 +37,8 @@ jobs:
             -DLLVM_TARGETS_TO_BUILD="X86" \
             -DLLVM_ENABLE_ASSERTIONS=OFF \
             -DCMAKE_INSTALL_PREFIX=../install \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             ../llvm
 
       - name: Build Clang and clangd
@@ -99,7 +109,15 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install ninja cmake
+          brew install ninja cmake ccache
+
+      - name: Setup ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/ccache
+          key: ccache-macos-${{ github.sha }}
+          restore-keys: |
+            ccache-macos-
 
       - name: Configure build
         run: |
@@ -111,6 +129,8 @@ jobs:
             -DLLVM_TARGETS_TO_BUILD="AArch64;X86" \
             -DLLVM_ENABLE_ASSERTIONS=OFF \
             -DCMAKE_INSTALL_PREFIX=../install \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             ../llvm
 
       - name: Build Clang and clangd
@@ -169,7 +189,15 @@ jobs:
 
       - name: Install dependencies
         run: |
-          choco install ninja cmake
+          choco install ninja cmake sccache
+
+      - name: Setup sccache
+        uses: actions/cache@v4
+        with:
+          path: C:\Users\runneradmin\AppData\Local\Mozilla\sccache
+          key: sccache-windows-${{ github.sha }}
+          restore-keys: |
+            sccache-windows-
 
       - name: Configure build
         run: |
@@ -181,6 +209,8 @@ jobs:
             -DLLVM_TARGETS_TO_BUILD="X86" `
             -DLLVM_ENABLE_ASSERTIONS=OFF `
             -DCMAKE_INSTALL_PREFIX=../install `
+            -DCMAKE_C_COMPILER_LAUNCHER=sccache `
+            -DCMAKE_CXX_COMPILER_LAUNCHER=sccache `
             ../llvm
 
       - name: Build Clang and clangd
