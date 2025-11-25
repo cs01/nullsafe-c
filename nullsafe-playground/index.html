@@ -198,37 +198,50 @@
         }
 
         .loading-spinner {
-            display: inline-flex;
-            gap: 3px;
-            align-items: flex-end;
+            display: inline-block;
+            width: 14px;
             height: 14px;
+            position: relative;
+            transform: rotate(-90deg);
         }
 
-        .loading-bar {
-            width: 3px;
-            background: currentColor;
-            border-radius: 2px;
-            animation: loading-bounce 0.8s ease-in-out infinite;
+        .loading-spinner::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 2px solid rgba(128, 128, 128, 0.25);
+            border-radius: 50%;
         }
 
-        .loading-bar:nth-child(1) {
-            animation-delay: 0s;
+        .loading-spinner::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: conic-gradient(
+                from 0deg,
+                currentColor 0deg,
+                currentColor var(--progress, 0deg),
+                transparent var(--progress, 0deg),
+                transparent 360deg
+            );
+            mask: radial-gradient(circle, transparent 4px, black 4px);
+            -webkit-mask: radial-gradient(circle, transparent 4px, black 4px);
+            transition: --progress 0.2s ease-out;
         }
 
-        .loading-bar:nth-child(2) {
-            animation-delay: 0.15s;
-        }
-
-        .loading-bar:nth-child(3) {
-            animation-delay: 0.3s;
-        }
-
-        @keyframes loading-bounce {
-            0%, 60%, 100% {
-                height: 6px;
+        @keyframes spinner-rotate {
+            0% {
+                transform: rotate(0deg);
             }
-            30% {
-                height: 14px;
+            100% {
+                transform: rotate(360deg);
             }
         }
 
@@ -514,11 +527,7 @@
         </button>
 
         <span id="status" class="status">
-            <span class="loading-spinner">
-                <span class="loading-bar"></span>
-                <span class="loading-bar"></span>
-                <span class="loading-bar"></span>
-            </span>
+            <span class="loading-spinner"></span>
             Initializing compiler...
         </span>
     </div>
@@ -645,6 +654,29 @@ void caller(void) {
                         }
                     });
 
+                    // Real-time diagnostics on content change
+                    let diagnosticsTimeout;
+                    editor.onDidChangeModelContent(() => {
+                        clearTimeout(diagnosticsTimeout);
+                        diagnosticsTimeout = setTimeout(async () => {
+                            if (!scriptUrl || isCompiling) {
+                                console.log('[Diagnostics] Skipped - scriptUrl:', !!scriptUrl, 'isCompiling:', isCompiling);
+                                return;
+                            }
+                            try {
+                                const code = getEditorValue();
+                                console.log('[Diagnostics] Running clang on code...');
+                                const result = await compileCode(code, []);
+                                console.log('[Diagnostics] stderr:', result.stderr);
+                                const diagnostics = parseDiagnostics(result.stderr);
+                                console.log('[Diagnostics] Parsed markers:', diagnostics);
+                                monaco.editor.setModelMarkers(editor.getModel(), 'clang', diagnostics);
+                            } catch (error) {
+                                console.error('[Diagnostics] Error:', error);
+                            }
+                        }, 500);
+                    });
+
                     resolve();
                 });
             });
@@ -659,6 +691,31 @@ void caller(void) {
             if (editor) {
                 editor.setValue(value);
             }
+        }
+
+        // Parse clang diagnostics into Monaco markers
+        function parseDiagnostics(stderr) {
+            const markers = [];
+            const lines = stderr.split('\n');
+            const diagnosticRegex = /^input\.c:(\d+):(\d+):\s+(error|warning|note):\s+(.+)$/;
+
+            for (const line of lines) {
+                const match = line.match(diagnosticRegex);
+                if (match) {
+                    const [, lineNum, colNum, severity, message] = match;
+                    markers.push({
+                        startLineNumber: parseInt(lineNum),
+                        startColumn: parseInt(colNum),
+                        endLineNumber: parseInt(lineNum),
+                        endColumn: parseInt(colNum) + 1,
+                        message: message,
+                        severity: severity === 'error' ? monaco.MarkerSeverity.Error
+                                : severity === 'warning' ? monaco.MarkerSeverity.Warning
+                                : monaco.MarkerSeverity.Info
+                    });
+                }
+            }
+            return markers;
         }
 
         let clangVersion = '';
@@ -677,11 +734,33 @@ void caller(void) {
         }
 
         // Status update helper
-        function setStatus(message, showSpinner = false) {
+        function setStatus(message, showSpinner = false, progressPercent = null) {
             if (showSpinner) {
-                status.innerHTML = `<span class="loading-spinner"><span class="loading-bar"></span><span class="loading-bar"></span><span class="loading-bar"></span></span> ${message}`;
+                const spinner = `<span class="loading-spinner" style="${progressPercent !== null ? `--progress: ${progressPercent}` : ''}"></span>`;
+                status.innerHTML = `${spinner} ${message}`;
+                if (progressPercent !== null) {
+                    status.title = `${progressPercent}% downloaded`;
+                    const spinnerEl = status.querySelector('.loading-spinner::after');
+                    if (spinnerEl) {
+                        const degrees = (progressPercent / 100) * 360;
+                        spinnerEl.style.transform = `rotate(${degrees}deg)`;
+                    }
+                } else {
+                    status.title = '';
+                }
             } else {
                 status.textContent = message;
+                status.title = '';
+            }
+        }
+
+        // Update progress spinner
+        function updateProgress(percent) {
+            const spinner = status.querySelector('.loading-spinner');
+            if (spinner) {
+                const degrees = (percent / 100) * 360;
+                spinner.style.setProperty('--progress', `${degrees}deg`);
+                status.title = `${Math.round(percent)}% downloaded`;
             }
         }
 
@@ -752,7 +831,7 @@ void caller(void) {
         }
 
         async function initCompiler() {
-            setStatus('Loading compiler (64MB)...', true);
+            setStatus('Loading compiler (64MB)...', true, 0);
             status.className = 'status';
             loadingBar.classList.add('active');
 
@@ -767,10 +846,37 @@ void caller(void) {
                     ? './clang.wasm'
                     : 'https://github.com/cs01/llvm-project/releases/latest/download/clang-nullsafe.wasm';
 
-                // Pre-load the WASM binary ONCE
+                // Pre-load the WASM binary ONCE with progress tracking
                 console.log('Downloading WASM binary...');
                 const wasmResponse = await fetch(wasmUrl);
-                wasmBinary = await wasmResponse.arrayBuffer();
+                const contentLength = wasmResponse.headers.get('content-length');
+                const total = parseInt(contentLength, 10);
+
+                let loaded = 0;
+                const reader = wasmResponse.body.getReader();
+                const chunks = [];
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    chunks.push(value);
+                    loaded += value.length;
+
+                    if (total) {
+                        const percent = (loaded / total) * 100;
+                        updateProgress(percent);
+                    }
+                }
+
+                // Combine chunks into final array buffer
+                const chunksAll = new Uint8Array(loaded);
+                let position = 0;
+                for (const chunk of chunks) {
+                    chunksAll.set(chunk, position);
+                    position += chunk.length;
+                }
+                wasmBinary = chunksAll.buffer;
                 console.log('WASM binary loaded:', wasmBinary.byteLength, 'bytes');
 
                 // Now test with a worker to get the version
@@ -785,6 +891,7 @@ void caller(void) {
 
                 status.textContent = 'Ready to compile';
                 status.className = 'status ready';
+                status.title = '';
                 compileBtn.disabled = false;
                 loadingBar.classList.remove('active');
                 showToast('Compiler loaded successfully!');
@@ -794,6 +901,7 @@ void caller(void) {
             } catch (error) {
                 status.textContent = 'Failed to load compiler';
                 status.className = 'status error';
+                status.title = '';
                 loadingBar.classList.remove('active');
                 showToast('Failed to load compiler: ' + error.message, 4000);
                 console.error('Failed to load Clang WASM:', error);

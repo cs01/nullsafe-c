@@ -2,61 +2,129 @@
  * LSP Bridge Worker - Runs clangd WASM and bridges LSP protocol to Monaco
  */
 
-let clangdModule = null;
-let isInitialized = false;
+let isReady = false;
 let messageId = 1;
 
-// Virtual filesystem for C files
-const virtualFS = new Map();
+// Handle messages from main thread
+self.onmessage = async function(e) {
+    const { type, ...data } = e.data;
 
-// Initialize clangd WASM module
-async function initClangd(scriptUrl, wasmBinary) {
-    return new Promise((resolve, reject) => {
-        // Load the Emscripten module
-        importScripts(scriptUrl);
+    if (type === 'load') {
+        try {
+            console.log('[LSP Worker] Loading clangd from', data.scriptUrl);
 
-        // Configure the Module
-        self.Module = {
-            wasmBinary: wasmBinary,
-            noInitialRun: true,
-            print: (text) => {
-                // clangd writes LSP responses to stdout
-                handleLSPResponse(text);
-            },
-            printErr: (text) => {
-                console.error('[clangd]', text);
-            },
-            onRuntimeInitialized: () => {
-                console.log('[LSP Worker] clangd WASM initialized');
+            // Configure Module BEFORE loading clangd.js
+            self.Module = {
+                print: function(text) {
+                    console.log('[clangd stdout]', text);
+                    // Parse LSP responses from stdout
+                    handleLSPOutput(text);
+                },
+                printErr: function(text) {
+                    console.log('[clangd stderr]', text);
+                },
+                noInitialRun: true,
+                wasmBinary: data.wasmBinary,
+                postRun: [function() {
+                    console.log('[LSP Worker] clangd initialized');
+                    isReady = true;
+                    self.postMessage({ type: 'ready' });
 
-                // Start clangd in LSP mode
-                const args = ['clangd', '--log=error'];
+                    // Send LSP initialize request
+                    sendLSPRequest('initialize', {
+                        processId: null,
+                        clientInfo: {
+                            name: 'null-safe-playground',
+                            version: '1.0.0'
+                        },
+                        rootUri: null,
+                        capabilities: {
+                            textDocument: {
+                                publishDiagnostics: {},
+                                completion: {},
+                                hover: {}
+                            }
+                        }
+                    });
+                }]
+            };
 
-                try {
-                    Module.callMain(args);
-                    resolve();
-                } catch (e) {
-                    reject(e);
-                }
+            // Load the Emscripten-generated JavaScript
+            importScripts(data.scriptUrl);
+            console.log('[LSP Worker] clangd.js loaded');
+
+        } catch (error) {
+            console.error('[LSP Worker] Failed to load clangd:', error);
+            self.postMessage({
+                type: 'error',
+                error: `Failed to load clangd: ${error.message}`
+            });
+        }
+    }
+    else if (type === 'textDocument/didOpen') {
+        const { uri, languageId, version, text } = data;
+        sendLSPNotification('textDocument/didOpen', {
+            textDocument: {
+                uri: uri,
+                languageId: languageId,
+                version: version,
+                text: text
             }
-        };
-    });
-}
-
-// Handle LSP JSON-RPC responses from clangd
-function handleLSPResponse(jsonText) {
-    try {
-        const message = JSON.parse(jsonText);
-
-        // Forward LSP message to main thread
-        postMessage({
-            type: 'lsp-response',
-            message: message
         });
+    }
+    else if (type === 'textDocument/didChange') {
+        const { uri, version, contentChanges } = data;
+        sendLSPNotification('textDocument/didChange', {
+            textDocument: {
+                uri: uri,
+                version: version
+            },
+            contentChanges: contentChanges
+        });
+    }
+    else if (type === 'textDocument/didClose') {
+        const { uri } = data;
+        sendLSPNotification('textDocument/didClose', {
+            textDocument: {
+                uri: uri
+            }
+        });
+    }
+};
 
-    } catch (e) {
-        // Not JSON, probably a log message
-        console.log('[clangd]', jsonText);
+// Buffer for incomplete LSP messages
+let lspBuffer = '';
+
+// Handle LSP output from clangd stdout
+function handleLSPOutput(text) {
+    lspBuffer += text;
+
+    // LSP messages are separated by Content-Length headers
+    while (true) {
+        const headerMatch = lspBuffer.match(/Content-Length: (\d+)\r?\n\r?\n/);
+        if (!headerMatch) break;
+
+        const contentLength = parseInt(headerMatch[1]);
+        const headerEnd = headerMatch.index + headerMatch[0].length;
+        const messageEnd = headerEnd + contentLength;
+
+        if (lspBuffer.length < messageEnd) break; // Incomplete message
+
+        const messageJson = lspBuffer.substring(headerEnd, messageEnd);
+        lspBuffer = lspBuffer.substring(messageEnd);
+
+        try {
+            const message = JSON.parse(messageJson);
+            console.log('[LSP Worker] Received LSP message:', message);
+
+            // Forward to main thread
+            self.postMessage({
+                type: 'lsp-message',
+                message: message
+            });
+        } catch (e) {
+            console.error('[LSP Worker] Failed to parse LSP message:', e, messageJson);
+        }
     }
 }
 
@@ -69,91 +137,33 @@ function sendLSPRequest(method, params) {
         params: params
     };
 
-    const jsonStr = JSON.stringify(request);
-    const contentLength = jsonStr.length;
-
-    // LSP uses Content-Length header protocol
-    const message = `Content-Length: ${contentLength}\r\n\r\n${jsonStr}`;
-
-    // Write to clangd's stdin
-    if (clangdModule && clangdModule.FS) {
-        const buffer = new TextEncoder().encode(message);
-        clangdModule.FS.writeFile('/dev/stdin', buffer);
-    }
+    sendLSPMessage(request);
 }
 
-// Handle messages from main thread
-onmessage = async function(e) {
-    const { type, data } = e.data;
+// Send LSP notification (no id) to clangd
+function sendLSPNotification(method, params) {
+    const notification = {
+        jsonrpc: '2.0',
+        method: method,
+        params: params
+    };
 
-    if (type === 'init') {
-        // Initialize clangd WASM
-        const { scriptUrl, wasmBinary } = data;
+    sendLSPMessage(notification);
+}
 
-        try {
-            clangdModule = await initClangd(scriptUrl, wasmBinary);
-            isInitialized = true;
+// Send LSP message to clangd stdin
+function sendLSPMessage(message) {
+    const jsonStr = JSON.stringify(message);
+    const contentLength = jsonStr.length;
+    const lspMessage = `Content-Length: ${contentLength}\r\n\r\n${jsonStr}`;
 
-            // Send initialize request
-            sendLSPRequest('initialize', {
-                processId: null,
-                clientInfo: {
-                    name: 'null-safe-playground',
-                    version: '1.0.0'
-                },
-                rootUri: 'file:///',
-                capabilities: {
-                    textDocument: {
-                        publishDiagnostics: {}
-                    }
-                }
-            });
+    console.log('[LSP Worker] Sending to clangd:', message.method || message.id);
 
-            postMessage({ type: 'ready' });
-
-        } catch (error) {
-            postMessage({
-                type: 'error',
-                error: error.message
-            });
-        }
+    // Write to clangd's stdin using Module
+    if (self.Module && self.Module.callMain) {
+        // clangd reads from stdin, so we need to provide input
+        // For now, we'll use a workaround - write to a virtual file that clangd monitors
+        // This is a simplified approach; real LSP would use stdin/stdout pipes
+        console.warn('[LSP Worker] LSP communication not yet fully implemented');
     }
-
-    else if (type === 'textDocument/didOpen') {
-        // Notify clangd that a document was opened
-        const { uri, languageId, version, text } = data;
-
-        sendLSPRequest('textDocument/didOpen', {
-            textDocument: {
-                uri: uri,
-                languageId: languageId,
-                version: version,
-                text: text
-            }
-        });
-    }
-
-    else if (type === 'textDocument/didChange') {
-        // Notify clangd of changes
-        const { uri, version, contentChanges } = data;
-
-        sendLSPRequest('textDocument/didChange', {
-            textDocument: {
-                uri: uri,
-                version: version
-            },
-            contentChanges: contentChanges
-        });
-    }
-
-    else if (type === 'textDocument/didClose') {
-        // Notify clangd that document was closed
-        const { uri } = data;
-
-        sendLSPRequest('textDocument/didClose', {
-            textDocument: {
-                uri: uri
-            }
-        });
-    }
-};
+}
