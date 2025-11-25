@@ -57,7 +57,7 @@ jobs:
         run: |
           export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
           cd build
-          ninja clang FileCheck count not
+          ninja clang FileCheck count not llvm-config
 
       - name: Run strict-nullability tests
         run: |
