@@ -22,14 +22,9 @@ self.onmessage = function(e) {
             wasmBinary: data.wasmBinary,  // Use the shared WASM binary
             postRun: [function() {
                 // postRun happens AFTER runtime initialization
-                console.log('Worker: postRun called');
-
-                // Try different FS locations
                 const FS = self.Module.FS || self.FS || (typeof FS !== 'undefined' ? FS : null);
-                console.log('Worker: FS found?', !!FS);
 
                 if (FS) {
-                    console.log('Worker: FS.initialized?', FS.initialized);
                     isReady = true;
                     self.postMessage({ type: 'ready' });
                 } else {
@@ -42,11 +37,9 @@ self.onmessage = function(e) {
                         if (fsNow) {
                             clearInterval(checkFS);
                             isReady = true;
-                            console.log('Worker: FS now available, sending ready');
                             self.postMessage({ type: 'ready' });
                         } else if (attempts > 100) {
                             clearInterval(checkFS);
-                            console.error('Worker: Gave up waiting for FS');
                             self.postMessage({
                                 type: 'error',
                                 error: 'Filesystem never became available'
@@ -59,11 +52,8 @@ self.onmessage = function(e) {
 
         // Load the Emscripten-generated JavaScript
         try {
-            console.log('Worker: Loading script from', data.scriptUrl);
             importScripts(data.scriptUrl);
-            console.log('Worker: Script loaded');
         } catch (error) {
-            console.error('Worker: Failed to load script', error);
             self.postMessage({
                 type: 'error',
                 error: `Failed to load compiler: ${error.message}`
@@ -94,8 +84,6 @@ self.onmessage = function(e) {
                 ...extraFlags,
                 inputFile
             ];
-
-            console.log('Worker compiling with args:', args);
 
             // Run compiler
             const exitCode = self.Module.callMain(args);

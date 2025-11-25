@@ -517,9 +517,16 @@
         </button>
 
         <select id="examplesSelect" class="examples-select">
-            <option value="null-check" selected>Null Check Example</option>
-            <option value="function-invalidates">Function Invalidates Check</option>
-            <option value="nonnull-annotation">_Nonnull Annotations</option>
+            <option value="null-check" selected>1. Basic Null Check</option>
+            <option value="early-return">2. Early Return Pattern</option>
+            <option value="pure-function">3. Pure Functions Preserve Narrowing</option>
+            <option value="function-invalidates">4. Function Invalidates Narrowing</option>
+            <option value="nonnull-annotation">5. _Nonnull Annotations</option>
+            <option value="multi-level">6. Multi-Level Pointers</option>
+            <option value="and-pattern">7. AND Pattern Narrowing</option>
+            <option value="else-branch">8. Else Branch Narrowing</option>
+            <option value="loop-narrowing">9. Loop Condition Narrowing</option>
+            <option value="dereference-context">10. Dereference in Condition</option>
         </select>
 
         <button id="shareBtn" class="btn btn-secondary">
@@ -590,7 +597,8 @@
         let editor = null; // Monaco editor instance
 
         const examples = {
-            'null-check': `void process(int* data) {
+            'null-check': `// Flow-sensitive null checking catches bugs at compile-time
+void safe(int* data) {
     if (data) {
         *data = 42;  // OK - data is non-null here
     }
@@ -599,29 +607,136 @@
 void unsafe(int* data) {
     *data = 42;  // warning - data might be null!
 }`,
-            'function-invalidates': `void modify(int** ptr);  // external function
+
+            'early-return': `// Early returns narrow type for rest of function
+void process(char* str) {
+    if (!str) return;  // guard clause
+
+    // str is now proven non-null
+    *str = 'x';  // OK
+}
+
+void multi_guard(char* p, char* q) {
+    if (!p || !q) return;
+
+    *p = 'a';  // OK - both narrowed
+    *q = 'b';  // OK
+}`,
+
+            'pure-function': `// Pure functions don't invalidate narrowing
+int is_digit(char c) __attribute__((const));
+
+void parse(const char* str) {
+    if (is_digit(*str)) {  // narrows str
+        char val = *str - '0';  // OK - still narrowed
+    }
+}`,
+
+            'function-invalidates': `// Regular functions invalidate narrowing (side effects)
+void modify(void);
 
 void example(int* data) {
     if (data) {
-        *data = 1;  // OK - checked
+        *data = 1;  // OK - narrowed
 
-        modify(&data);  // might modify data!
+        modify();   // might modify data!
 
-        *data = 2;  // warning - data could be null now!
+        *data = 2;  // warning - no longer safe
     }
 }`,
-            'nonnull-annotation': `// Use _Nonnull to require non-null arguments
-void process_nonnull(int * _Nonnull data) {
-    *data = 42;  // OK - caller must pass non-null
+
+            'nonnull-annotation': `// _Nonnull forces callers to guarantee non-null
+void process(int * _Nonnull data) {
+    *data = 42;  // OK - guaranteed non-null
 }
 
 void caller(void) {
     int* nullable = 0;
     int x = 10;
 
-    process_nonnull(0);        // error!
-    process_nonnull(nullable); // error!
-    process_nonnull(&x);       // OK
+    process(0);        // error!
+    process(nullable); // error!
+    process(&x);       // OK
+}`,
+
+            'multi-level': `// Multi-level pointers check each level independently
+void example(int** pp) {
+    if (pp && *pp) {
+        **pp = 42;  // OK - both levels narrowed
+    }
+}
+
+void triple(int*** ppp) {
+    if (ppp && *ppp && **ppp) {
+        ***ppp = 42;  // OK - all 3 levels checked
+    }
+}`,
+
+            'and-pattern': `// AND expressions narrow in the then-block
+void simple(char* p, char* q) {
+    if (p && q) {
+        *p = 'x';  // OK - narrowed
+        *q = 'y';  // OK - narrowed
+    }
+}
+
+// Dereference in AND is safe
+void deref_and(char* str) {
+    if (str && *str == 'a') {  // OK to deref
+        *str = 'b';  // OK in body too
+    }
+}`,
+
+            'else-branch': `// Else branch gets opposite narrowing
+void example(int* p) {
+    if (p) {
+        *p = 42;  // OK - known non-null
+    } else {
+        *p = 0;   // warning - known NULL!
+    }
+}
+
+void negated(int* p) {
+    if (!p) {
+        *p = 1;  // warning - known NULL
+    } else {
+        *p = 1;  // OK - known non-null
+    }
+}`,
+
+            'loop-narrowing': `// Loop conditions narrow the body
+void while_loop(int* p) {
+    while (p) {
+        *p = 42;  // OK - narrowed in body
+        p = 0;    // exit loop
+    }
+    *p = 0;  // warning - nullable again
+}
+
+void for_loop(int* p) {
+    for (; p; p = 0) {
+        *p = 42;  // OK - narrowed in body
+    }
+}`,
+
+            'dereference-context': `// Dereference in condition is allowed
+void while_str(const char* ptr) {
+    while (*ptr != '\\0') {  // OK - can deref
+        ptr++;
+    }
+}
+
+void if_check(const char* str) {
+    if (*str == 'a') {  // OK - can deref
+        // process...
+    }
+}
+
+void for_check(const char* input) {
+    const char* p;
+    for (p = input; *p; p++) {  // OK - can deref
+        // process...
+    }
 }`
         };
 
@@ -659,20 +774,14 @@ void caller(void) {
                     editor.onDidChangeModelContent(() => {
                         clearTimeout(diagnosticsTimeout);
                         diagnosticsTimeout = setTimeout(async () => {
-                            if (!scriptUrl || isCompiling) {
-                                console.log('[Diagnostics] Skipped - scriptUrl:', !!scriptUrl, 'isCompiling:', isCompiling);
-                                return;
-                            }
+                            if (!scriptUrl || isCompiling) return;
                             try {
                                 const code = getEditorValue();
-                                console.log('[Diagnostics] Running clang on code...');
                                 const result = await compileCode(code, []);
-                                console.log('[Diagnostics] stderr:', result.stderr);
                                 const diagnostics = parseDiagnostics(result.stderr);
-                                console.log('[Diagnostics] Parsed markers:', diagnostics);
                                 monaco.editor.setModelMarkers(editor.getModel(), 'clang', diagnostics);
                             } catch (error) {
-                                console.error('[Diagnostics] Error:', error);
+                                // Silently fail - diagnostics are non-critical
                             }
                         }, 500);
                     });
