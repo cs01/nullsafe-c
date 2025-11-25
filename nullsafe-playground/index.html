@@ -469,8 +469,41 @@
         }
 
         @media (max-width: 768px) {
+            body {
+                height: auto;
+                min-height: 100vh;
+                overflow-y: auto;
+            }
+
             .main-container {
                 flex-direction: column;
+                min-height: 500px;
+                height: auto;
+            }
+
+            .pane {
+                min-height: 300px;
+            }
+
+            .pane:first-child,
+            .pane:last-child {
+                flex: 1 1 auto;
+                height: auto;
+                min-height: 300px;
+            }
+
+            #editor-wrapper {
+                min-height: 250px;
+            }
+
+            .output-container {
+                min-height: 250px;
+            }
+
+            .output-section:first-child,
+            .output-section:last-child {
+                flex: 1 1 auto;
+                min-height: 150px;
             }
 
             .divider {
@@ -481,14 +514,32 @@
 
             .header {
                 padding: 16px 20px;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
             }
 
             .header h1 {
                 font-size: 24px;
+                margin-bottom: 4px;
+            }
+
+            .header p {
+                font-size: 14px;
+            }
+
+            .header-links {
+                align-self: flex-start;
             }
 
             .controls {
                 padding: 12px 20px;
+            }
+
+            .status {
+                margin-left: 0;
+                width: 100%;
+                justify-content: center;
             }
         }
     </style>
@@ -502,6 +553,13 @@
             <p>Flow-sensitive null safety for C - Try the experimental compiler live in your browser</p>
         </div>
         <div class="header-links">
+            <button id="reportBugBtn" class="header-link" style="background: none; border: none; cursor: pointer;">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: text-bottom;">
+                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                    <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
+                </svg>
+                Report Bug
+            </button>
             <a href="https://github.com/cs01/llvm-project/" target="_blank" class="header-link">
                 <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: text-bottom;">
                     <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
@@ -530,6 +588,9 @@
         </select>
 
         <button id="shareBtn" class="btn btn-secondary">
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: text-bottom;">
+                <path d="M13.5 1a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM11 2.5a2.5 2.5 0 1 1 .603 1.628l-6.718 3.12a2.499 2.499 0 0 1 0 1.504l6.718 3.12a2.5 2.5 0 1 1-.488.876l-6.718-3.12a2.5 2.5 0 1 1 0-3.256l6.718-3.12A2.5 2.5 0 0 1 11 2.5zm-8.5 4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm11 5.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/>
+            </svg>
             Share
         </button>
 
@@ -903,7 +964,6 @@ void for_check(const char* input) {
             const example = e.target.value;
             if (example && examples[example]) {
                 setEditorValue(examples[example]);
-                showToast('Example loaded!');
             }
         });
 
@@ -923,6 +983,104 @@ void for_check(const char* input) {
             }
         });
 
+        // Report bug button - create GitHub issue with context
+        const reportBugBtn = document.getElementById('reportBugBtn');
+        reportBugBtn.addEventListener('click', () => {
+            // Check if compiler is loaded and code has been compiled
+            if (!clangVersion || outputNullsafe.textContent === '' || outputNullsafe.textContent === '(no output yet)') {
+                if (!confirm('You haven\'t compiled any code yet. The bug report will be incomplete. Continue anyway?')) {
+                    return;
+                }
+            }
+
+            const code = getEditorValue();
+            const nullsafeOutput = outputNullsafe.textContent || '(no output yet)';
+            const mainlineOutput = outputMainline.textContent || '(no output yet)';
+
+            // Get browser info - parse user agent for readability
+            const ua = navigator.userAgent;
+            let browserInfo = ua;
+
+            // Try to parse browser name and version
+            let browserName = 'Unknown';
+            let browserVersion = '';
+            if (ua.includes('Chrome/') && !ua.includes('Edg/')) {
+                browserName = 'Chrome';
+                browserVersion = ua.match(/Chrome\/([0-9.]+)/)?.[1] || '';
+            } else if (ua.includes('Edg/')) {
+                browserName = 'Edge';
+                browserVersion = ua.match(/Edg\/([0-9.]+)/)?.[1] || '';
+            } else if (ua.includes('Firefox/')) {
+                browserName = 'Firefox';
+                browserVersion = ua.match(/Firefox\/([0-9.]+)/)?.[1] || '';
+            } else if (ua.includes('Safari/') && !ua.includes('Chrome/')) {
+                browserName = 'Safari';
+                browserVersion = ua.match(/Version\/([0-9.]+)/)?.[1] || '';
+            }
+
+            // Get OS info
+            let osInfo = 'Unknown';
+            if (ua.includes('Mac OS X')) {
+                const osVersion = ua.match(/Mac OS X ([0-9_]+)/)?.[1]?.replace(/_/g, '.') || '';
+                osInfo = `macOS ${osVersion}`;
+            } else if (ua.includes('Windows')) {
+                osInfo = 'Windows';
+            } else if (ua.includes('Linux')) {
+                osInfo = 'Linux';
+            }
+
+            const formattedBrowser = `${browserName} ${browserVersion} on ${osInfo}`;
+
+            // Build the issue body
+            const issueBody = `## Bug Report from Playground
+
+### Environment
+- **Compiler Version:** ${clangVersion || 'not loaded'}
+- **Browser:** ${formattedBrowser}
+- **User Agent:** ${ua}
+- **Playground URL:** ${window.location.href}
+
+### Code
+\`\`\`c
+${code}
+\`\`\`
+
+### Compiler Output
+
+#### With Null Warnings
+\`\`\`
+${nullsafeOutput}
+\`\`\`
+
+#### Without Null Warnings
+\`\`\`
+${mainlineOutput}
+\`\`\`
+
+### Expected Behavior
+<!-- Please describe what you expected to happen -->
+
+
+### Actual Behavior
+<!-- Please describe what actually happened -->
+
+
+### Additional Context
+<!-- Add any other context about the problem here -->
+`;
+
+            // Create GitHub issue URL with pre-filled content
+            const repoUrl = 'https://github.com/cs01/llvm-project';
+            const issueUrl = new URL(`${repoUrl}/issues/new`);
+            issueUrl.searchParams.set('title', '[Playground Bug] ');
+            issueUrl.searchParams.set('body', issueBody);
+            issueUrl.searchParams.set('labels', 'bug,playground');
+
+            // Open in new tab
+            window.open(issueUrl.toString(), '_blank');
+            showToast('Opening bug report in GitHub...');
+        });
+
         // Load code from URL on page load
         function loadCodeFromURL() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -940,9 +1098,11 @@ void for_check(const char* input) {
         }
 
         async function initCompiler() {
-            setStatus('Loading compiler (64MB)...', true, 0);
+            setStatus('Loading compiler...', true, 0);
             status.className = 'status';
             loadingBar.classList.add('active');
+
+            let loaded = 0;
 
             try {
                 // Determine script URL
@@ -958,10 +1118,20 @@ void for_check(const char* input) {
                 // Pre-load the WASM binary ONCE with progress tracking
                 console.log('Downloading WASM binary...');
                 const wasmResponse = await fetch(wasmUrl);
+
+                if (!wasmResponse.ok) {
+                    throw new Error(`Failed to fetch WASM: ${wasmResponse.status} ${wasmResponse.statusText}`);
+                }
+
                 const contentLength = wasmResponse.headers.get('content-length');
                 const total = parseInt(contentLength, 10);
 
-                let loaded = 0;
+                // Update status with actual size if known
+                if (total) {
+                    const sizeMB = (total / (1024 * 1024)).toFixed(0);
+                    setStatus(`Loading compiler (${sizeMB}MB)...`, true, 0);
+                }
+
                 const reader = wasmResponse.body.getReader();
                 const chunks = [];
 
@@ -1008,12 +1178,30 @@ void for_check(const char* input) {
                 setTimeout(() => compile(), 500);
 
             } catch (error) {
-                status.textContent = 'Failed to load compiler';
+                console.error('Failed to load Clang WASM:', error);
+
+                // Provide a helpful error message
+                let errorMessage = 'Failed to load compiler';
+                let toastMessage = 'Failed to load compiler';
+
+                if (error.message && error.message.includes('Failed to fetch')) {
+                    errorMessage = 'Network error - Cannot download compiler';
+                    toastMessage = 'Network error: Unable to download the compiler. Please check your internet connection.';
+                } else if (error.message && (error.message.includes('404') || error.message.includes('File not found'))) {
+                    errorMessage = 'Compiler files not found';
+                    toastMessage = 'Compiler files not found. The WASM binaries are missing from the server.';
+                } else if (loaded === 0 || (wasmBinary && wasmBinary.byteLength === 0)) {
+                    errorMessage = 'Download failed - 0 bytes received';
+                    toastMessage = 'Failed to download compiler: Received 0 bytes. Please check your internet connection and try refreshing the page.';
+                } else {
+                    toastMessage = `Failed to load compiler: ${error.message}`;
+                }
+
+                status.textContent = errorMessage;
                 status.className = 'status error';
                 status.title = '';
                 loadingBar.classList.remove('active');
-                showToast('Failed to load compiler: ' + error.message, 4000);
-                console.error('Failed to load Clang WASM:', error);
+                showToast(toastMessage, 6000);
             }
         }
 
