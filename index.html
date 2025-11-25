@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Null-Safe Clang Playground</title>
+
+    <!-- Monaco Editor from CDN (cached by browser) -->
+    <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/editor/editor.main.min.css">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #252526;
+            --bg-tertiary: #2d2d30;
+            --border-color: #3e3e42;
+            --text-primary: #d4d4d4;
+            --text-secondary: #cccccc;
+            --text-muted: #888;
+            --accent-blue: #4a90e2;
+            --success: #4ec9b0;
+            --warning: #ffb84d;
+            --error: #ff5252;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+        }
+
+        .header {
+            background: var(--accent-blue);
+            padding: 24px 32px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .header-links {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .header-link {
+            color: white;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .header-link:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: -0.8px;
+            margin-bottom: 6px;
+        }
+
+        .header p {
+            color: rgba(255,255,255,0.95);
+            font-size: 15px;
+            font-weight: 400;
+        }
+
+        .controls {
+            padding: 16px 32px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            border: none;
+            padding: 10px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: var(--accent-blue);
+            color: white;
+            box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(74, 144, 226, 0.4);
+        }
+
+        .btn-primary:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #3a3a3d;
+            border-color: #4e4e52;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .examples-dropdown {
+            position: relative;
+        }
+
+        .examples-select {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+            padding: 10px 16px;
+            font-size: 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 200px;
+        }
+
+        .examples-select:hover {
+            background: #3a3a3d;
+            border-color: #4e4e52;
+        }
+
+        .status {
+            color: var(--text-primary);
+            font-size: 13px;
+            margin-left: auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            font-weight: 500;
+        }
+
+        .status.ready {
+            background: rgba(78, 201, 176, 0.15);
+            border-color: rgba(78, 201, 176, 0.3);
+            color: var(--success);
+        }
+
+        .status.compiling {
+            background: rgba(255, 184, 77, 0.15);
+            border-color: rgba(255, 184, 77, 0.3);
+            color: var(--warning);
+        }
+
+        .status.error {
+            background: rgba(255, 82, 82, 0.15);
+            border-color: rgba(255, 82, 82, 0.3);
+            color: var(--error);
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            position: relative;
+            transform: rotate(-90deg);
+        }
+
+        .loading-spinner::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 2px solid rgba(128, 128, 128, 0.25);
+            border-radius: 50%;
+        }
+
+        .loading-spinner::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: conic-gradient(
+                from 0deg,
+                currentColor 0deg,
+                currentColor var(--progress, 0deg),
+                transparent var(--progress, 0deg),
+                transparent 360deg
+            );
+            mask: radial-gradient(circle, transparent 4px, black 4px);
+            -webkit-mask: radial-gradient(circle, transparent 4px, black 4px);
+            transition: --progress 0.2s ease-out;
+        }
+
+        @keyframes spinner-rotate {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .pane {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .pane:first-child {
+            flex: 0 0 50%;
+        }
+
+        .pane:last-child {
+            flex: 0 0 50%;
+        }
+
+        .pane-header {
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            padding: 12px 20px;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .pane-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .icon-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .icon-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .divider {
+            width: 5px;
+            background: var(--border-color);
+            cursor: col-resize;
+            position: relative;
+            flex-shrink: 0;
+            transition: background 0.2s;
+        }
+
+        .divider:hover {
+            background: var(--accent-blue);
+        }
+
+
+        #editor-wrapper {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #editor {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+
+        #output {
+            flex: 1;
+            padding: 20px;
+            font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        #output:empty::before {
+            content: 'Compiler output will appear here...';
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .output-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .output-section {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .output-section:first-child {
+            flex: 0 0 50%;
+        }
+
+        .output-section:last-child {
+            flex: 0 0 50%;
+        }
+
+        .output-section-header {
+            background: var(--bg-tertiary);
+            padding: 8px 16px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+
+        .output-content {
+            flex: 1;
+            padding: 20px;
+            font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .output-content:empty::before {
+            content: 'Output will appear here...';
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .output-divider {
+            height: 5px;
+            background: var(--border-color);
+            cursor: row-resize;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .output-divider:hover {
+            background: var(--accent-blue);
+        }
+
+        .error { color: var(--error); }
+        .warning { color: var(--warning); }
+        .success { color: var(--success); }
+
+        .loading-bar {
+            height: 3px;
+            background: var(--accent-blue);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            transition: width 0.3s ease;
+            opacity: 0;
+        }
+
+        .loading-bar.active {
+            opacity: 1;
+            animation: loading 2s ease-in-out infinite;
+        }
+
+        @keyframes loading {
+            0% { width: 0%; }
+            50% { width: 70%; }
+            100% { width: 100%; }
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            border: 1px solid var(--border-color);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                height: auto;
+                min-height: 100vh;
+                overflow-y: auto;
+            }
+
+            .main-container {
+                flex-direction: column;
+                min-height: 500px;
+                height: auto;
+            }
+
+            .pane {
+                min-height: 300px;
+            }
+
+            .pane:first-child,
+            .pane:last-child {
+                flex: 1 1 auto;
+                height: auto;
+                min-height: 300px;
+            }
+
+            #editor-wrapper {
+                min-height: 250px;
+            }
+
+            .output-container {
+                min-height: 250px;
+            }
+
+            .output-section:first-child,
+            .output-section:last-child {
+                flex: 1 1 auto;
+                min-height: 150px;
+            }
+
+            .divider {
+                width: 100%;
+                height: 5px;
+                cursor: row-resize;
+            }
+
+            .header {
+                padding: 16px 20px;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+                margin-bottom: 4px;
+            }
+
+            .header p {
+                font-size: 14px;
+            }
+
+            .header-links {
+                align-self: flex-start;
+            }
+
+            .controls {
+                padding: 12px 20px;
+            }
+
+            .status {
+                margin-left: 0;
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-bar" id="loadingBar"></div>
+
+    <div class="header">
+        <div class="header-content">
+            <h1>Null-Safe Clang Playground</h1>
+            <p>Flow-sensitive null safety for C - Try the experimental compiler live in your browser</p>
+        </div>
+        <div class="header-links">
+            <button id="reportBugBtn" class="header-link" style="background: none; border: none; cursor: pointer;">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: text-bottom;">
+                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                    <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
+                </svg>
+                Report Bug
+            </button>
+            <a href="https://github.com/cs01/llvm-project/" target="_blank" class="header-link">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: text-bottom;">
+                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+                </svg>
+                GitHub
+            </a>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="compileBtn" class="btn btn-primary" disabled>
+            <span>▶</span> Compile
+        </button>
+
+        <select id="examplesSelect" class="examples-select">
+            <option value="null-check" selected>1. Basic Null Check</option>
+            <option value="early-return">2. Early Return Pattern</option>
+            <option value="pure-function">3. Pure Functions Preserve Narrowing</option>
+            <option value="function-invalidates">4. Function Invalidates Narrowing</option>
+            <option value="nonnull-annotation">5. _Nonnull Annotations</option>
+            <option value="multi-level">6. Multi-Level Pointers</option>
+            <option value="and-pattern">7. AND Pattern Narrowing</option>
+            <option value="else-branch">8. Else Branch Narrowing</option>
+            <option value="loop-narrowing">9. Loop Condition Narrowing</option>
+            <option value="dereference-context">10. Null Check Before Deref</option>
+        </select>
+
+        <button id="shareBtn" class="btn btn-secondary">
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: text-bottom;">
+                <path d="M13.5 1a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM11 2.5a2.5 2.5 0 1 1 .603 1.628l-6.718 3.12a2.499 2.499 0 0 1 0 1.504l6.718 3.12a2.5 2.5 0 1 1-.488.876l-6.718-3.12a2.5 2.5 0 1 1 0-3.256l6.718-3.12A2.5 2.5 0 0 1 11 2.5zm-8.5 4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm11 5.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/>
+            </svg>
+            Share
+        </button>
+
+        <span id="status" class="status">
+            <span class="loading-spinner"></span>
+            Initializing compiler...
+        </span>
+    </div>
+
+    <div class="main-container">
+        <div class="pane">
+            <div class="pane-header">
+                <span>Source Code</span>
+                <div class="pane-actions">
+                    <button class="icon-btn" title="Keyboard shortcut: Cmd/Ctrl+Enter">Ctrl+Enter to compile</button>
+                </div>
+            </div>
+            <div id="editor-wrapper">
+                <div id="editor"></div>
+            </div>
+        </div>
+
+        <div class="divider" id="divider"></div>
+
+        <div class="pane">
+            <div class="pane-header">
+                <span>Compiler Output</span>
+            </div>
+            <div class="output-container">
+                <div class="output-section">
+                    <div class="output-section-header">With Null Warnings</div>
+                    <div id="output-nullsafe" class="output-content"></div>
+                </div>
+                <div class="output-divider" id="outputDivider"></div>
+                <div class="output-section">
+                    <div class="output-section-header">Without Null Warnings</div>
+                    <div id="output-mainline" class="output-content"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <!-- Load Monaco Editor from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+    <script>
+        // Configure Monaco loader
+        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+    </script>
+
+    <script>
+        const editorElement = document.getElementById('editor');
+        const outputNullsafe = document.getElementById('output-nullsafe');
+        const outputMainline = document.getElementById('output-mainline');
+        const compileBtn = document.getElementById('compileBtn');
+        const status = document.getElementById('status');
+        const examplesSelect = document.getElementById('examplesSelect');
+        const shareBtn = document.getElementById('shareBtn');
+        const loadingBar = document.getElementById('loadingBar');
+        const toast = document.getElementById('toast');
+        const divider = document.getElementById('divider');
+        const outputDivider = document.getElementById('outputDivider');
+
+        let editor = null; // Monaco editor instance
+
+        const examples = {
+            'null-check': `// Flow-sensitive null checking catches bugs at compile-time
+void safe(int* data) {
+    if (data) {
+        *data = 42;  // OK - data is non-null here
+    }
+}
+
+void unsafe(int* data) {
+    *data = 42;  // warning - data might be null!
+}`,
+
+            'early-return': `// Early returns narrow type for rest of function
+void process(char* str) {
+    if (!str) return;  // guard clause
+
+    // str is now proven non-null
+    *str = 'x';  // OK
+}
+
+void multi_guard(char* p, char* q) {
+    if (!p || !q) return;
+
+    *p = 'a';  // OK - both narrowed
+    *q = 'b';  // OK
+}`,
+
+            'pure-function': `// Pure functions don't invalidate narrowing
+int is_digit(char c) __attribute__((const));
+
+void parse(const char* str) {
+    if (str && is_digit(*str)) {  // Check first, then call
+        char val = *str - '0';  // OK - narrowed by check
+    }
+}`,
+
+            'function-invalidates': `// Regular functions invalidate narrowing (side effects)
+void modify(void);
+
+void example(int* data) {
+    if (data) {
+        *data = 1;  // OK - narrowed
+
+        modify();   // might modify data!
+
+        *data = 2;  // warning - no longer safe
+    }
+}`,
+
+            'nonnull-annotation': `// _Nonnull forces callers to guarantee non-null
+void process(int * _Nonnull data) {
+    *data = 42;  // OK - guaranteed non-null
+}
+
+void caller(void) {
+    int* nullable = 0;
+    int x = 10;
+
+    process(0);        // error!
+    process(nullable); // error!
+    process(&x);       // OK
+}`,
+
+            'multi-level': `// Multi-level pointers check each level independently
+void example(int** pp) {
+    if (pp && *pp) {
+        **pp = 42;  // OK - both levels narrowed
+    }
+}
+
+void triple(int*** ppp) {
+    if (ppp && *ppp && **ppp) {
+        ***ppp = 42;  // OK - all 3 levels checked
+    }
+}`,
+
+            'and-pattern': `// AND expressions narrow in the then-block
+void simple(char* p, char* q) {
+    if (p && q) {
+        *p = 'x';  // OK - narrowed
+        *q = 'y';  // OK - narrowed
+    }
+}
+
+// Dereference in AND is safe
+void deref_and(char* str) {
+    if (str && *str == 'a') {  // OK to deref
+        *str = 'b';  // OK in body too
+    }
+}`,
+
+            'else-branch': `// Else branch gets opposite narrowing
+void example(int* p) {
+    if (p) {
+        *p = 42;  // OK - known non-null
+    } else {
+        *p = 0;   // warning - known NULL!
+    }
+}
+
+void negated(int* p) {
+    if (!p) {
+        *p = 1;  // warning - known NULL
+    } else {
+        *p = 1;  // OK - known non-null
+    }
+}`,
+
+            'loop-narrowing': `// Loop conditions narrow the body
+void while_loop(int* p) {
+    while (p) {
+        *p = 42;  // OK - narrowed in body
+        p = 0;    // exit loop
+    }
+    *p = 0;  // warning - nullable again
+}
+
+void for_loop(int* p) {
+    for (; p; p = 0) {
+        *p = 42;  // OK - narrowed in body
+    }
+}`,
+
+            'dereference-context': `// Must null-check before dereferencing
+void while_str(const char* ptr) {
+    while (ptr && *ptr != '\\0') {  // Check first!
+        ptr++;
+    }
+}
+
+void if_check(const char* str) {
+    if (str && *str == 'a') {  // Check first!
+        // process...
+    }
+}
+
+void for_check(const char* input) {
+    const char* p;
+    for (p = input; p && *p; p++) {  // Check first!
+        // process...
+    }
+}`
+        };
+
+        const defaultCode = examples['null-check'];
+
+        // Monaco editor will be initialized async
+        function initMonaco() {
+            return new Promise((resolve) => {
+                require(['vs/editor/editor.main'], function() {
+                    editor = monaco.editor.create(editorElement, {
+                        value: defaultCode,
+                        language: 'c',
+                        theme: 'vs-dark',
+                        automaticLayout: true,
+                        minimap: { enabled: false },
+                        fontSize: 14,
+                        lineNumbers: 'on',
+                        scrollBeyondLastLine: false,
+                        wordWrap: 'off',
+                        tabSize: 4
+                    });
+
+                    // Add Ctrl+Enter shortcut
+                    editor.addAction({
+                        id: 'compile-code',
+                        label: 'Compile Code',
+                        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
+                        run: function() {
+                            compile();
+                        }
+                    });
+
+                    // Real-time diagnostics on content change
+                    let diagnosticsTimeout;
+                    editor.onDidChangeModelContent(() => {
+                        clearTimeout(diagnosticsTimeout);
+                        diagnosticsTimeout = setTimeout(async () => {
+                            if (!scriptUrl || isCompiling) return;
+                            try {
+                                const code = getEditorValue();
+                                const result = await compileCode(code, []);
+                                const diagnostics = parseDiagnostics(result.stderr);
+                                monaco.editor.setModelMarkers(editor.getModel(), 'clang', diagnostics);
+                            } catch (error) {
+                                // Silently fail - diagnostics are non-critical
+                            }
+                        }, 500);
+                    });
+
+                    resolve();
+                });
+            });
+        }
+
+        // Helper to get/set editor content
+        function getEditorValue() {
+            return editor ? editor.getValue() : '';
+        }
+
+        function setEditorValue(value) {
+            if (editor) {
+                editor.setValue(value);
+            }
+        }
+
+        // Parse clang diagnostics into Monaco markers
+        function parseDiagnostics(stderr) {
+            const markers = [];
+            const lines = stderr.split('\n');
+            const diagnosticRegex = /^input\.c:(\d+):(\d+):\s+(error|warning|note):\s+(.+)$/;
+
+            for (const line of lines) {
+                const match = line.match(diagnosticRegex);
+                if (match) {
+                    const [, lineNum, colNum, severity, message] = match;
+                    markers.push({
+                        startLineNumber: parseInt(lineNum),
+                        startColumn: parseInt(colNum),
+                        endLineNumber: parseInt(lineNum),
+                        endColumn: parseInt(colNum) + 1,
+                        message: message,
+                        severity: severity === 'error' ? monaco.MarkerSeverity.Error
+                                : severity === 'warning' ? monaco.MarkerSeverity.Warning
+                                : monaco.MarkerSeverity.Info
+                    });
+                }
+            }
+            return markers;
+        }
+
+        let clangVersion = '';
+        let isCompiling = false;
+        let isDragging = false;
+        let scriptUrl = null;
+        let wasmBinary = null;
+
+        // Toast notification
+        function showToast(message, duration = 2000) {
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, duration);
+        }
+
+        // Status update helper
+        function setStatus(message, showSpinner = false, progressPercent = null) {
+            if (showSpinner) {
+                const spinner = `<span class="loading-spinner" style="${progressPercent !== null ? `--progress: ${progressPercent}` : ''}"></span>`;
+                status.innerHTML = `${spinner} ${message}`;
+                if (progressPercent !== null) {
+                    status.title = `${progressPercent}% downloaded`;
+                    const spinnerEl = status.querySelector('.loading-spinner::after');
+                    if (spinnerEl) {
+                        const degrees = (progressPercent / 100) * 360;
+                        spinnerEl.style.transform = `rotate(${degrees}deg)`;
+                    }
+                } else {
+                    status.title = '';
+                }
+            } else {
+                status.textContent = message;
+                status.title = '';
+            }
+        }
+
+        // Update progress spinner
+        function updateProgress(percent) {
+            const spinner = status.querySelector('.loading-spinner');
+            if (spinner) {
+                const degrees = (percent / 100) * 360;
+                spinner.style.setProperty('--progress', `${degrees}deg`);
+                status.title = `${Math.round(percent)}% downloaded`;
+            }
+        }
+
+        // Resizable panes
+        let isDraggingOutput = false;
+
+        divider.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            e.preventDefault();
+        });
+
+        // Output divider resizing
+        outputDivider.addEventListener('mousedown', (e) => {
+            isDraggingOutput = true;
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const container = document.querySelector('.main-container');
+                const containerRect = container.getBoundingClientRect();
+                const offsetX = e.clientX - containerRect.left;
+                const percentage = (offsetX / containerRect.width) * 100;
+
+                if (percentage > 20 && percentage < 80) {
+                    const panes = document.querySelectorAll('.pane');
+                    panes[0].style.flex = `0 0 ${percentage}%`;
+                    panes[1].style.flex = `0 0 ${100 - percentage}%`;
+                }
+            }
+
+            if (isDraggingOutput) {
+                const container = document.querySelector('.output-container');
+                const containerRect = container.getBoundingClientRect();
+                const offsetY = e.clientY - containerRect.top;
+                const percentage = (offsetY / containerRect.height) * 100;
+
+                if (percentage > 20 && percentage < 80) {
+                    const sections = document.querySelectorAll('.output-section');
+                    sections[0].style.flex = `0 0 ${percentage}%`;
+                    sections[1].style.flex = `0 0 ${100 - percentage}%`;
+                }
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            isDraggingOutput = false;
+        });
+
+        // Examples dropdown
+        examplesSelect.addEventListener('change', (e) => {
+            const example = e.target.value;
+            if (example && examples[example]) {
+                setEditorValue(examples[example]);
+            }
+        });
+
+        // Share button - encode code in URL
+        shareBtn.addEventListener('click', async () => {
+            try {
+                const code = getEditorValue();
+                const encoded = btoa(unescape(encodeURIComponent(code)));
+                const url = new URL(window.location.href.split('?')[0]);
+                url.searchParams.set('code', encoded);
+
+                await navigator.clipboard.writeText(url.toString());
+                showToast('Share link copied to clipboard!');
+            } catch (err) {
+                showToast('Failed to create share link');
+                console.error('Share error:', err);
+            }
+        });
+
+        // Report bug button - create GitHub issue with context
+        const reportBugBtn = document.getElementById('reportBugBtn');
+        reportBugBtn.addEventListener('click', () => {
+            // Check if compiler is loaded and code has been compiled
+            if (!clangVersion || outputNullsafe.textContent === '' || outputNullsafe.textContent === '(no output yet)') {
+                if (!confirm('You haven\'t compiled any code yet. The bug report will be incomplete. Continue anyway?')) {
+                    return;
+                }
+            }
+
+            const code = getEditorValue();
+            const nullsafeOutput = outputNullsafe.textContent || '(no output yet)';
+            const mainlineOutput = outputMainline.textContent || '(no output yet)';
+
+            // Get browser info - parse user agent for readability
+            const ua = navigator.userAgent;
+            let browserInfo = ua;
+
+            // Try to parse browser name and version
+            let browserName = 'Unknown';
+            let browserVersion = '';
+            if (ua.includes('Chrome/') && !ua.includes('Edg/')) {
+                browserName = 'Chrome';
+                browserVersion = ua.match(/Chrome\/([0-9.]+)/)?.[1] || '';
+            } else if (ua.includes('Edg/')) {
+                browserName = 'Edge';
+                browserVersion = ua.match(/Edg\/([0-9.]+)/)?.[1] || '';
+            } else if (ua.includes('Firefox/')) {
+                browserName = 'Firefox';
+                browserVersion = ua.match(/Firefox\/([0-9.]+)/)?.[1] || '';
+            } else if (ua.includes('Safari/') && !ua.includes('Chrome/')) {
+                browserName = 'Safari';
+                browserVersion = ua.match(/Version\/([0-9.]+)/)?.[1] || '';
+            }
+
+            // Get OS info
+            let osInfo = 'Unknown';
+            if (ua.includes('Mac OS X')) {
+                const osVersion = ua.match(/Mac OS X ([0-9_]+)/)?.[1]?.replace(/_/g, '.') || '';
+                osInfo = `macOS ${osVersion}`;
+            } else if (ua.includes('Windows')) {
+                osInfo = 'Windows';
+            } else if (ua.includes('Linux')) {
+                osInfo = 'Linux';
+            }
+
+            const formattedBrowser = `${browserName} ${browserVersion} on ${osInfo}`;
+
+            // Build the issue body
+            const issueBody = `## Bug Report from Playground
+
+### Environment
+- **Compiler Version:** ${clangVersion || 'not loaded'}
+- **Browser:** ${formattedBrowser}
+- **User Agent:** ${ua}
+- **Playground URL:** ${window.location.href}
+
+### Code
+\`\`\`c
+${code}
+\`\`\`
+
+### Compiler Output
+
+#### With Null Warnings
+\`\`\`
+${nullsafeOutput}
+\`\`\`
+
+#### Without Null Warnings
+\`\`\`
+${mainlineOutput}
+\`\`\`
+
+### Expected Behavior
+<!-- Please describe what you expected to happen -->
+
+
+### Actual Behavior
+<!-- Please describe what actually happened -->
+
+
+### Additional Context
+<!-- Add any other context about the problem here -->
+`;
+
+            // Create GitHub issue URL with pre-filled content
+            const repoUrl = 'https://github.com/cs01/llvm-project';
+            const issueUrl = new URL(`${repoUrl}/issues/new`);
+            issueUrl.searchParams.set('title', '[Playground Bug] ');
+            issueUrl.searchParams.set('body', issueBody);
+            issueUrl.searchParams.set('labels', 'bug,playground');
+
+            // Open in new tab
+            window.open(issueUrl.toString(), '_blank');
+            showToast('Opening bug report in GitHub...');
+        });
+
+        // Load code from URL on page load
+        function loadCodeFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const encodedCode = urlParams.get('code');
+            if (encodedCode) {
+                try {
+                    const code = decodeURIComponent(escape(atob(encodedCode)));
+                    setEditorValue(code);
+                    showToast('Code loaded from URL!');
+                } catch (err) {
+                    console.error('Failed to decode URL code:', err);
+                    showToast('Failed to load code from URL');
+                }
+            }
+        }
+
+        async function initCompiler() {
+            setStatus('Loading compiler...', true, 0);
+            status.className = 'status';
+            loadingBar.classList.add('active');
+
+            let loaded = 0;
+
+            try {
+                // Determine script URL
+                const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+                // Allow testing production URLs on localhost with ?prod=1
+                const urlParams = new URLSearchParams(window.location.search);
+                const forceProd = urlParams.get('prod') === '1' || urlParams.get('mode') === 'prod';
+
+                if (isDev && !forceProd) {
+                    // Local development - files should be in the same directory
+                    scriptUrl = './clang.js';
+                    var wasmUrl = './clang.wasm';
+                    console.log('🔧 Development mode: Using local files');
+                } else {
+                    // Production - files are served from GitHub Pages (same origin, no CORS issues!)
+                    scriptUrl = './clang.js';
+                    var wasmUrl = './clang.wasm';
+                    console.log('🚀 Production mode: Using files from GitHub Pages');
+                }
+
+                // Pre-load the WASM binary ONCE with progress tracking
+                console.log('Downloading WASM binary...');
+                const wasmResponse = await fetch(wasmUrl);
+
+                if (!wasmResponse.ok) {
+                    throw new Error(`Failed to fetch WASM: ${wasmResponse.status} ${wasmResponse.statusText}`);
+                }
+
+                const contentLength = wasmResponse.headers.get('content-length');
+                const total = parseInt(contentLength, 10);
+
+                // Update status with actual size if known
+                if (total) {
+                    const sizeMB = (total / (1024 * 1024)).toFixed(0);
+                    setStatus(`Loading compiler (${sizeMB}MB)...`, true, 0);
+                }
+
+                const reader = wasmResponse.body.getReader();
+                const chunks = [];
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    chunks.push(value);
+                    loaded += value.length;
+
+                    if (total) {
+                        const percent = (loaded / total) * 100;
+                        updateProgress(percent);
+                    }
+                }
+
+                // Combine chunks into final array buffer
+                const chunksAll = new Uint8Array(loaded);
+                let position = 0;
+                for (const chunk of chunks) {
+                    chunksAll.set(chunk, position);
+                    position += chunk.length;
+                }
+                wasmBinary = chunksAll.buffer;
+                console.log('WASM binary loaded:', wasmBinary.byteLength, 'bytes');
+
+                // Now test with a worker to get the version
+                const versionResult = await compileCode('int main() { return 0; }', ['--version']);
+                const versionOutput = versionResult.stdout + versionResult.stderr;
+                const versionMatch = versionOutput.match(/clang version ([^\s]+)/);
+                if (versionMatch) {
+                    clangVersion = versionMatch[1];
+                    document.querySelector('.output-section-header').textContent =
+                        `Null-Safe Clang ${clangVersion}`;
+                }
+
+                status.textContent = 'Ready to compile';
+                status.className = 'status ready';
+                status.title = '';
+                compileBtn.disabled = false;
+                loadingBar.classList.remove('active');
+                showToast('Compiler loaded successfully!');
+
+                setTimeout(() => compile(), 500);
+
+            } catch (error) {
+                console.error('Failed to load Clang WASM:', error);
+
+                // Provide a helpful error message
+                let errorMessage = 'Failed to load compiler';
+                let toastMessage = 'Failed to load compiler';
+
+                if (error.message && error.message.includes('Failed to fetch')) {
+                    errorMessage = 'Network error - Cannot download compiler';
+                    toastMessage = 'Network error: Unable to download the compiler. Please check your internet connection.';
+                } else if (error.message && (error.message.includes('404') || error.message.includes('File not found'))) {
+                    errorMessage = 'Compiler files not found';
+                    toastMessage = 'Compiler files not found. The WASM binaries are missing from the server.';
+                } else if (loaded === 0 || (wasmBinary && wasmBinary.byteLength === 0)) {
+                    errorMessage = 'Download failed - 0 bytes received';
+                    toastMessage = 'Failed to download compiler: Received 0 bytes. Please check your internet connection and try refreshing the page.';
+                } else {
+                    toastMessage = `Failed to load compiler: ${error.message}`;
+                }
+
+                status.textContent = errorMessage;
+                status.className = 'status error';
+                status.title = '';
+                loadingBar.classList.remove('active');
+                showToast(toastMessage, 6000);
+            }
+        }
+
+        async function compile() {
+            if (isCompiling) return;
+            if (!scriptUrl) {
+                outputNullsafe.innerHTML = `<span class="error">Compiler not loaded yet. Please wait...</span>`;
+                outputMainline.innerHTML = `<span class="error">Compiler not loaded yet. Please wait...</span>`;
+                return;
+            }
+
+            isCompiling = true;
+            compileBtn.disabled = true;
+            status.textContent = 'Compiling...';
+            status.className = 'status compiling';
+            outputNullsafe.innerHTML = '';
+            outputMainline.innerHTML = '';
+            loadingBar.classList.add('active');
+
+            const startTime = performance.now();
+
+            try {
+                const code = getEditorValue();
+
+                // Compile both versions in parallel
+                const [nullsafeResult, mainlineResult] = await Promise.all([
+                    compileCode(code, []),
+                    compileCode(code, ['-Wno-nullability'])
+                ]);
+
+                const duration = (performance.now() - startTime).toFixed(0);
+
+                // Build command strings
+                const baseArgs = '-fsyntax-only --target=wasm32-unknown-emscripten';
+                const nullsafeCmd = `$ clang ${baseArgs} input.c`;
+                const mainlineCmd = `$ clang ${baseArgs} -Wno-nullability input.c`;
+
+                // Update headers with clearer titles
+                const headers = document.querySelectorAll('.output-section-header');
+                headers[0].textContent = `With Null Warnings (clang v${clangVersion})`;
+                headers[1].textContent = `Without Null Warnings (clang v${clangVersion})`;
+
+                // Count nullability warnings to detect missed bugs
+                const nullWarningCount = (nullsafeResult.stderr.match(/\[-Wnullability\]/g) || []).length;
+
+                // Display null-safe results with command
+                if (nullsafeResult.stdout || nullsafeResult.stderr) {
+                    outputNullsafe.textContent = nullsafeCmd + '\n' + nullsafeResult.stderr + nullsafeResult.stdout;
+                } else {
+                    outputNullsafe.textContent = nullsafeCmd + '\n✓ No errors or warnings';
+                }
+
+                // Display mainline results with command and comparison
+                if (mainlineResult.stdout || mainlineResult.stderr) {
+                    outputMainline.textContent = mainlineCmd + '\n' + mainlineResult.stderr + mainlineResult.stdout;
+                } else {
+                    // No warnings suppressed, but check if null-safe had warnings
+                    if (nullWarningCount > 0) {
+                        outputMainline.textContent = mainlineCmd + '\n✓ No errors or warnings\n\n⚠️  Missed ' + nullWarningCount + ' null safety bug' + (nullWarningCount !== 1 ? 's' : '') + ' (see above)';
+                    } else {
+                        outputMainline.textContent = mainlineCmd + '\n✓ No errors or warnings';
+                    }
+                }
+
+                status.textContent = 'Ready to compile';
+                status.className = 'status ready';
+            } catch (error) {
+                const errorMsg = error.message || String(error);
+                outputNullsafe.innerHTML = `<span class="error">Compilation failed: ${errorMsg}\n\nCheck console for details.</span>`;
+                outputMainline.innerHTML = `<span class="error">Compilation failed: ${errorMsg}\n\nCheck console for details.</span>`;
+                status.textContent = 'Compilation error';
+                status.className = 'status error';
+                console.error('Compilation error:', error);
+            } finally {
+                isCompiling = false;
+                compileBtn.disabled = false;
+                loadingBar.classList.remove('active');
+            }
+        }
+
+        async function compileCode(code, extraFlags = []) {
+            return new Promise((resolve, reject) => {
+                const worker = new Worker('compiler-worker.js');
+
+                let stdout = '';
+                let stderr = '';
+                let completed = false;
+
+                const timeout = setTimeout(() => {
+                    if (!completed) {
+                        worker.terminate();
+                        reject(new Error('Compilation timeout'));
+                    }
+                }, 30000);
+
+                worker.onmessage = function(e) {
+                    const { type, text, error, exitCode } = e.data;
+
+                    if (type === 'ready') {
+                        // Worker is ready, send compile request
+                        worker.postMessage({
+                            type: 'compile',
+                            code,
+                            extraFlags
+                        });
+                    } else if (type === 'stdout') {
+                        stdout += text + '\n';
+                    } else if (type === 'stderr') {
+                        stderr += text + '\n';
+                    } else if (type === 'complete') {
+                        completed = true;
+                        clearTimeout(timeout);
+                        worker.terminate();
+                        resolve({ stdout, stderr, exitCode });
+                    } else if (type === 'error') {
+                        completed = true;
+                        clearTimeout(timeout);
+                        worker.terminate();
+                        reject(new Error(error));
+                    }
+                };
+
+                worker.onerror = function(error) {
+                    completed = true;
+                    clearTimeout(timeout);
+                    worker.terminate();
+                    reject(error);
+                };
+
+                // Send the pre-loaded WASM binary to the worker
+                worker.postMessage({
+                    type: 'load',
+                    scriptUrl,
+                    wasmBinary  // Share the pre-loaded WASM
+                });
+            });
+        }
+
+        compileBtn.addEventListener('click', compile);
+
+        // Auto-compile on load
+        window.addEventListener('load', async () => {
+            await initMonaco();  // Initialize Monaco editor first
+            loadCodeFromURL();   // Load code from URL if present
+            initCompiler();
+        });
+    </script>
+</body>
+</html>
