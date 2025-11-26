@@ -127,7 +127,7 @@ async function loadExamples() {
         // Parse clang diagnostics into Monaco markers
         function parseDiagnostics(stderr) {
             const markers = [];
-            const lines = stderr.split('\x60\x60\x60\n');
+            const lines = stderr.split('\n');
             const diagnosticRegex = /^input\.c:(\d+):(\d+):\s+(error|warning|note):\s+(.+)$/;
 
             for (const line of lines) {
@@ -572,14 +572,14 @@ async function loadExamples() {
 
                 // Display null-safe results with command
                 if (nullsafeResult.stdout || nullsafeResult.stderr) {
-                    outputNullsafe.textContent = nullsafeCmd + '\x60\x60\x60\n' + nullsafeResult.stderr + nullsafeResult.stdout;
+                    outputNullsafe.textContent = nullsafeCmd + '\n' + nullsafeResult.stderr + nullsafeResult.stdout;
                 } else {
                     outputNullsafe.textContent = nullsafeCmd + '\n✓ No errors or warnings';
                 }
 
                 // Display mainline results with command and comparison
                 if (mainlineResult.stdout || mainlineResult.stderr) {
-                    outputMainline.textContent = mainlineCmd + '\x60\x60\x60\n' + mainlineResult.stderr + mainlineResult.stdout;
+                    outputMainline.textContent = mainlineCmd + '\n' + mainlineResult.stderr + mainlineResult.stdout;
                 } else {
                     // No warnings suppressed, but check if null-safe had warnings
                     if (nullWarningCount > 0) {
@@ -631,9 +631,9 @@ async function loadExamples() {
                             extraFlags
                         });
                     } else if (type === 'stdout') {
-                        stdout += text + '\x60\x60\x60\n';
+                        stdout += text + '\n';
                     } else if (type === 'stderr') {
-                        stderr += text + '\x60\x60\x60\n';
+                        stderr += text + '\n';
                     } else if (type === 'complete') {
                         completed = true;
                         clearTimeout(timeout);
