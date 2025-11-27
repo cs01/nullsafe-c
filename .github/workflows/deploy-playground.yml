@@ -40,9 +40,7 @@ jobs:
           cd /tmp/wasm-files
           curl -L -o clang.wasm "https://github.com/${{ github.repository }}/releases/download/${LATEST_RELEASE}/clang-nullsafe.wasm"
           curl -L -o clang.js "https://github.com/${{ github.repository }}/releases/download/${LATEST_RELEASE}/clang-nullsafe.js"
-          curl -L -o clangd.wasm "https://github.com/${{ github.repository }}/releases/download/${LATEST_RELEASE}/clangd-nullsafe.wasm"
-          curl -L -o clangd.js "https://github.com/${{ github.repository }}/releases/download/${LATEST_RELEASE}/clangd-nullsafe.js"
-
+          
           echo "Downloaded files:"
           ls -lh
 
