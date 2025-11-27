@@ -26,25 +26,16 @@ jobs:
           name: clang-nullsafe-macos-universal
           path: artifacts/
 
-      - name: Download Windows artifact
-        uses: dawidd6/action-download-artifact@v3
-        with:
-          workflow: build-clang.yml
-          commit: ${{ github.sha }}
-          name: clang-nullsafe-windows-x86_64
-          path: artifacts/
-
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
             artifacts/clang-nullsafe-linux-x86_64.tar.gz
             artifacts/clang-nullsafe-macos-universal.tar.gz
-            artifacts/clang-nullsafe-windows-x86_64.tar.gz
           body: |
             ## Null-Safe Clang Binary Release
 
-            This release contains the Null-Safe Clang compiler and clangd language server for Linux, macOS, and Windows.
+            This release contains the Null-Safe Clang compiler and clangd language server for Linux and macOS.
 
             ### What's included:
             - `clang` - The Null-Safe C compiler
@@ -56,13 +47,6 @@ jobs:
             ```bash
             tar -xzf clang-nullsafe-<platform>.tar.gz
             export PATH=$PWD/bin:$PATH
-            clang --version
-            ```
-
-            **Windows:**
-            ```bash
-            tar -xzf clang-nullsafe-windows-x86_64.tar.gz
-            # Add bin/ directory to your PATH
             clang --version
             ```
 
