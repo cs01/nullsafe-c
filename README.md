@@ -34,15 +34,25 @@ Try it out in the [Interactive Playground](https://cs01.github.io/llvm-project/)
 
 ## Installation
 
+### Prerequisites
+
+**macOS:**
+```bash
+brew install zstd
+xcode-select --install  # If not already installed
+```
+
+### Quick Install
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/cs01/llvm-project/null-safe-c-dev/install.sh | sh
 ```
 
-Or download manually from [releases](https://github.com/cs01/llvm-project/releases/latest).
+Or download manually from [releases](https://github.com/cs01/llvm-project/releases).
 
 ### Windows
 
-Download and extract from [releases](https://github.com/cs01/llvm-project/releases/latest), then add the `bin` directory to your PATH.
+Builds not available at this time, you must clone and build locally.
 
 ### What's Included
 

@@ -24,23 +24,21 @@ jobs:
 
       - name: Download latest WASM files from release
         run: |
-          # Get the latest playground release
           LATEST_RELEASE=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases | \
             jq -r '[.[] | select(.tag_name | startswith("playground-v"))] | first | .tag_name')
 
           echo "Latest playground release: $LATEST_RELEASE"
 
           if [ -z "$LATEST_RELEASE" ]; then
-            echo "No playground release found! Please create a release with tag 'playground-vX.X.X'"
+            echo "No playground release found"
             exit 1
           fi
 
-          # Download the WASM files to a temp directory
           mkdir -p /tmp/wasm-files
           cd /tmp/wasm-files
           curl -L -o clang.wasm "https://github.com/${{ github.repository }}/releases/download/${LATEST_RELEASE}/clang-nullsafe.wasm"
           curl -L -o clang.js "https://github.com/${{ github.repository }}/releases/download/${LATEST_RELEASE}/clang-nullsafe.js"
-          
+
           echo "Downloaded files:"
           ls -lh
 
@@ -49,34 +47,25 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Check if gh-pages exists
           if git ls-remote --exit-code --heads origin gh-pages; then
-            echo "gh-pages branch exists, checking out"
             git fetch origin gh-pages
             git checkout gh-pages
           else
-            echo "Creating new orphan gh-pages branch"
             git checkout --orphan gh-pages
           fi
 
-          # Clear everything
           git rm -rf . 2>/dev/null || true
 
-          # Copy playground files from the original branch
           git checkout null-safe-c-dev -- nullsafe-playground
           mv nullsafe-playground/* .
           rm -rf nullsafe-playground
 
-          # Copy the downloaded WASM files
           cp /tmp/wasm-files/* .
 
-          # Disable Jekyll processing
           touch .nojekyll
 
-          # Add all files (including the downloaded WASM)
           git add -A
 
-          # Commit
           if git diff --staged --quiet; then
             echo "No changes to deploy"
           else

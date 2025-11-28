@@ -26,24 +26,44 @@ jobs:
           name: clang-nullsafe-macos-universal
           path: artifacts/
 
+      - name: Download WASM artifact
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: build-clang.yml
+          commit: ${{ github.sha }}
+          name: clang-nullsafe-wasm
+          path: artifacts/
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
             artifacts/clang-nullsafe-linux-x86_64.tar.gz
             artifacts/clang-nullsafe-macos-universal.tar.gz
+            artifacts/clang-nullsafe-wasm.tar.gz
           body: |
-            ## Null-Safe Clang Binary Release
+            ## Null-Safe Clang Release
 
-            This release contains the Null-Safe Clang compiler and clangd language server for Linux and macOS.
+            This release contains the Null-Safe Clang compiler for all platforms.
 
             ### What's included:
+
+            **Native Binaries (Linux/macOS):**
             - `clang` - The Null-Safe C compiler
             - `clangd` - Language server for IDE integration (VSCode, vim, etc.)
 
+            **WebAssembly:**
+            - `clang-nullsafe.wasm` - WebAssembly compiler for browser playground
+            - `clang-nullsafe.js` - JavaScript glue code
+
             ### Installation:
 
-            **Linux / macOS:**
+            **Quick install (Linux/macOS):**
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/cs01/llvm-project/null-safe-c-dev/install.sh | sh
+            ```
+
+            **Manual install:**
             ```bash
             tar -xzf clang-nullsafe-<platform>.tar.gz
             export PATH=$PWD/bin:$PATH
@@ -61,6 +81,9 @@ jobs:
             # Disable null-safety checking
             clang -fno-strict-nullability mycode.c
             ```
+
+            ### Try it online:
+            Interactive WebAssembly playground: https://cs01.github.io/llvm-project/
 
             See the [README](https://github.com/cs01/llvm-project/blob/null-safe-c-dev/README.md) for full documentation.
         env:
