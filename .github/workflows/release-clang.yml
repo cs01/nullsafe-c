@@ -60,7 +60,7 @@ jobs:
 
             **Quick install (Linux/macOS):**
             ```bash
-            curl -fsSL https://raw.githubusercontent.com/cs01/llvm-project/null-safe-c-dev/install.sh | sh
+            curl -fsSL https://raw.githubusercontent.com/cs01/llvm-project/null-safe-c-dev/install.sh | bash
             ```
 
             **Manual install:**
