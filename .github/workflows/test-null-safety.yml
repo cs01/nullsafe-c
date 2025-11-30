@@ -3,10 +3,10 @@ name: Test Null-Safety
 on:
   push:
     branches:
-      - null-safe-c-dev
+      - main
   pull_request:
     branches:
-      - null-safe-c-dev
+      - main
   workflow_dispatch:
 
 jobs:

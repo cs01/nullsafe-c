@@ -3,7 +3,7 @@ name: Deploy Playground to GitHub Pages
 on:
   push:
     branches:
-      - null-safe-c-dev
+      - main
   workflow_dispatch:
 
 permissions:
@@ -71,7 +71,7 @@ jobs:
 
           git rm -rf . 2>/dev/null || true
 
-          git checkout null-safe-c-dev -- nullsafe-playground
+          git checkout main -- nullsafe-playground
           mv nullsafe-playground/* .
           rm -rf nullsafe-playground
 
