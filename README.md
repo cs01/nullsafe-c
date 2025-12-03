@@ -1,16 +1,16 @@
 # Nullsafe C: An experimental C/C++ compiler
 
-[![Test Null-Safety](https://github.com/cs01/llvm-project/actions/workflows/test-null-safety.yml/badge.svg)](https://github.com/cs01/llvm-project/actions/workflows/test-null-safety.yml)
+[![Test Null-Safety](https://github.com/cs01/llvm-project/actions/workflows/test-null-safety.yml/badge.svg)](https://github.com/cs01/llvm-project/actions/workflows/test-null-safety.yml) &nbsp;&nbsp; [![Try Online](https://img.shields.io/badge/try-online-brightgreen)](https://cs01.github.io/llvm-project/)
+
+> **Try it online:** [Interactive Playground](https://cs01.github.io/llvm-project/) - See null-safety warnings in real-time 
 
 Nullsafe C adds NULL checks to catch errors at compile-time. It is 100% compatible with existing C codebases and can be used incrementally to identify safety issues at compile-time. 
 
 This provides the following benefits:
-* This makes the code safer by reducing the number of potential runtime null dereferences
-* Improves developer experience by shifting errors left
-* Makes the code more readable
-* Adds type errors that other more modern languages have (Rust, TypeScript, Kotlin)
-
-**Try it online:** [Interactive Playground](https://cs01.github.io/llvm-project/) - See null-safety warnings in real-time in your browser!
+* Catches errors at compile-time rather than runtime, reducing crashes
+* Improves developer experience by shifting errors left and showing issues in the IDE as you code
+* Makes code more readable and maintainable, including annotations with `_Nonnull`
+* Adds type checking that more modern languages have (Rust, TypeScript, Kotlin)
 
 Nullsafe C treats all pointers as potentially null ('nullable') unless it is certain they are not. It does this in two ways. 
 
@@ -20,6 +20,10 @@ The second is by using Clang's [`Nullability`](https://clang.llvm.org/docs/Attri
 
 If using a compiler other than clang, you can add `#define _Nonnull` as a no-op. You will not get the same compile checks as with Nullsafe C (clang fork), but the compillation will still succeed without error.
 
+When a function is called, it will reset any type refinements, assuming there may be side effects. If the variable is marked `const` in the function signature the type narrowing is maintained, because it is guaranteed to not be made null within the function.
+
+Note that this does not change any of the generated code. There are no performance impacts, it strictly does compile-time checks.
+
 ## Examples
 
 ```c
@@ -27,7 +31,7 @@ void unsafe(int *data) {
   *data = 42; // warning: dereferencing nullable pointer of type 'int * _Nullable'
 }
 ```
-[Try it in the interactive playground](https://cs01.github.io/llvm-project/?code=dm9pZCB1bnNhZmUoaW50ICpkYXRhKSB7CiAgKmRhdGEgPSA0MjsgLy8gd2FybmluZzogZGVyZWZlcmVuY2luZyBudWxsYWJsZSBwb2ludGVyIG9mIHR5cGUgJ2ludCAqIF9OdWxsYWJsZScKfQ%3D%3D)
+*[Try it in the interactive playground](https://cs01.github.io/llvm-project/?code=dm9pZCB1bnNhZmUoaW50ICpkYXRhKSB7CiAgKmRhdGEgPSA0MjsgLy8gd2FybmluZzogZGVyZWZlcmVuY2luZyBudWxsYWJsZSBwb2ludGVyIG9mIHR5cGUgJ2ludCAqIF9OdWxsYWJsZScKfQ%3D%3D)*
 
 Type narrowing:
 ```c
@@ -37,7 +41,7 @@ void safe(int *data) {
   }
 }
 ```
-[Try it in the interactive playground](https://cs01.github.io/llvm-project/?code=dm9pZCBzYWZlKGludCAqZGF0YSkgewogIGlmIChkYXRhKSB7CiAgICAqZGF0YSA9IDQyOyAvLyBPSyAtIGRhdGEgaXMgbm9uLW51bGwgaGVyZQogIH0KfQ%3D%3D)
+*[Try it in the interactive playground](https://cs01.github.io/llvm-project/?code=dm9pZCBzYWZlKGludCAqZGF0YSkgewogIGlmIChkYXRhKSB7CiAgICAqZGF0YSA9IDQyOyAvLyBPSyAtIGRhdGEgaXMgbm9uLW51bGwgaGVyZQogIH0KfQ%3D%3D)*
 
 Anontated with `_Nonnull`:
 ```c
@@ -45,7 +49,7 @@ void safe_typed(int *_Nonnull data) {
   *data = 42; // OK - we know data is not null so we can derefernce it
 }
 ```
-[Try it in the interactive playground](https://cs01.github.io/llvm-project/?code=dm9pZCBzYWZlX3R5cGVkKGludCAqX05vbm51bGwgZGF0YSkgewogICpkYXRhID0gNDI7IC8vIE9LIC0gd2Uga25vdyBkYXRhIGlzIG5vdCBudWxsIHNvIHdlIGNhbiBkZXJlZmVybmNlIGl0Cn0%3D)
+*[Try it in the interactive playground](https://cs01.github.io/llvm-project/?code=dm9pZCBzYWZlX3R5cGVkKGludCAqX05vbm51bGwgZGF0YSkgewogICpkYXRhID0gNDI7IC8vIE9LIC0gd2Uga25vdyBkYXRhIGlzIG5vdCBudWxsIHNvIHdlIGNhbiBkZXJlZmVybmNlIGl0Cn0%3D)*
 
 
 ## Installation
@@ -78,7 +82,7 @@ Each release includes:
 
 Once installed, configure your editor to use the null-safe `clangd`. Install the `clangd` extension from llvm and set the path to the clangd binary you just downloaded.
 
-**VSCode:**
+**VS Code:**
 ```json
 // settings.json
 {
@@ -107,11 +111,11 @@ Do not that this is not a comprehensive solution, since Null pointer dereference
 | Double-free             | ❌ Unsafe  | ❌ Unsafe                            |
 | Uninitialized memory    | ❌ Unsafe  | ❌ Unsafe                            |
 
-Although this doesn't fix all memory safety issues, it catches Null pointer dereferences for free.
+Although this doesn't fix all memory safety issues, it catches Null pointer dereferences for free. For additional memory safety, consider a language other than C. 
 
 ### Why you still might want to try this
 
-While Null-Safe Clang doesn't solve all memory safety issues, null pointer dereferences are a significant problem:
+While Null-Safe Clang doesn't solve all memory safety issues in C, null pointer dereferences are a significant problem:
 
 - Many memory safety bugs involve null pointer dereferences
 - Easier to adopt than rewriting in Rust (100% compatible with existing C code)
@@ -124,11 +128,11 @@ While Null-Safe Clang doesn't solve all memory safety issues, null pointer deref
 Basic usage (warnings enabled by default):
 ```bash
 # Warnings for nullable dereferences
-clang mycode.c
+clang -fsyntax-only mycode.c
 # Treat nullability issues as errors
-clang -Werror=nullability mycode.c
+clang -fsyntax-only -Werror=nullability mycode.c
 # Turn off nullability checking
-clang -fno-strict-nullability mycode.c
+clang -fsyntax-only -fno-strict-nullability mycode.c
 ```
 
 
