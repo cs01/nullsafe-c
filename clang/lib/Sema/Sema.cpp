@@ -1051,16 +1051,33 @@ void Sema::HandleAssertNarrowing(FunctionDecl *FDecl, CallExpr *TheCall) {
   }
 }
 
-// strict-nullability: Invalidate all narrowing in the current scope
 void Sema::InvalidateNarrowingInCurrentScope() {
   if (NullabilityNarrowingScopes.empty())
     return;
 
-  // Clear ALL narrowing in all scopes, not just the current one.
-  // This is conservative: function calls can have arbitrary side effects through
-  // global state, so we can't trust any narrowing after a function call.
   for (auto &Scope : NullabilityNarrowingScopes) {
-    Scope.clear();
+    llvm::SmallVector<const VarDecl*, 8> ToRemove;
+
+    for (const auto &Entry : Scope) {
+      const VarDecl *VD = Entry.first;
+      QualType VarType = VD->getType();
+
+      bool PreserveNarrowing = false;
+      if (const PointerType *PT = VarType->getAs<PointerType>()) {
+        QualType PointeeType = PT->getPointeeType();
+        if (PointeeType.isConstQualified()) {
+          PreserveNarrowing = true;
+        }
+      }
+
+      if (!PreserveNarrowing) {
+        ToRemove.push_back(VD);
+      }
+    }
+
+    for (const VarDecl *VD : ToRemove) {
+      Scope.erase(VD);
+    }
   }
 }
 

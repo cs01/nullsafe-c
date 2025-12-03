@@ -2,45 +2,53 @@
 
 [![Test Null-Safety](https://github.com/cs01/llvm-project/actions/workflows/test-null-safety.yml/badge.svg)](https://github.com/cs01/llvm-project/actions/workflows/test-null-safety.yml)
 
-Nullsafe C adds NULL checks to catch errors at compile-time, not runtime. It is 100% compatible with existing C codebases and can be used incrementally to identify safety issues at compile-time.
+Nullsafe C adds NULL checks to catch errors at compile-time. It is 100% compatible with existing C codebases and can be used incrementally to identify safety issues at compile-time. 
 
-You can annotate your code with `_Nonnull` to presere narrowing.
+This provides the following benefits:
+* This makes the code safer by reducing the number of potential runtime null dereferences
+* Improves developer experience by shifting errors left
+* Makes the code more readable
+* Adds type errors that other more modern languages have (Rust, TypeScript, Kotlin)
 
 **Try it online:** [Interactive Playground](https://cs01.github.io/llvm-project/) - See null-safety warnings in real-time in your browser!
 
-It does this by making two changes:
-1. All pointers are nullable by default, unless explicitly marked `_Nonnull`. Clang already allows the code to be annotated with `_Nullable` and `_Nonnull`, but this compiler treats all unmarked pointers as nullable by default.
-2. The compiler tracks when you've null-checked a pointer and knows it's safe to use. When you write `if (p)`, the type system understands `p` is non-null in that branch.
+Nullsafe C treats all pointers as potentially null ('nullable') unless it is certain they are not. It does this in two ways. 
 
-## Example
+The first is by semantic analysis: if you test a pointer with `if(p)`, then it knows that branch contains a non-null pointer.
+
+The second is by using Clang's [`Nullability`](https://clang.llvm.org/docs/AttributeReference.html#nullability-attributes) attributes, in particular `_Nonnull`. If a pointer is marked as `_Nonnull` the compiler will require a pointer it knows it not null is passed to it. This can be done either by passing a `_Nonnull`-annotated pointer, or by doing type narrowing. 
+
+If using a compiler other than clang, you can add `#define _Nonnull` as a no-op. You will not get the same compile checks as with Nullsafe C (clang fork), but the compillation will still succeed without error.
+
+## Examples
 
 ```c
 void unsafe(int *data) {
-  *data = 42; // warning - data might be null!
+  *data = 42; // warning: dereferencing nullable pointer of type 'int * _Nullable'
 }
+```
+[Try it in the interactive playground](https://cs01.github.io/llvm-project/?code=dm9pZCB1bnNhZmUoaW50ICpkYXRhKSB7CiAgKmRhdGEgPSA0MjsgLy8gd2FybmluZzogZGVyZWZlcmVuY2luZyBudWxsYWJsZSBwb2ludGVyIG9mIHR5cGUgJ2ludCAqIF9OdWxsYWJsZScKfQ%3D%3D)
 
+Type narrowing:
+```c
 void safe(int *data) {
   if (data) {
     *data = 42; // OK - data is non-null here
   }
 }
-
-void safe_typed(int *_Nonnull data) {
-  *data = 42; // OK - data is known to be non-null by the compiler
-}
-
 ```
-Try it out in the [Interactive Playground](https://cs01.github.io/llvm-project/).
+[Try it in the interactive playground](https://cs01.github.io/llvm-project/?code=dm9pZCBzYWZlKGludCAqZGF0YSkgewogIGlmIChkYXRhKSB7CiAgICAqZGF0YSA9IDQyOyAvLyBPSyAtIGRhdGEgaXMgbm9uLW51bGwgaGVyZQogIH0KfQ%3D%3D)
+
+Anontated with `_Nonnull`:
+```c
+void safe_typed(int *_Nonnull data) {
+  *data = 42; // OK - we know data is not null so we can derefernce it
+}
+```
+[Try it in the interactive playground](https://cs01.github.io/llvm-project/?code=dm9pZCBzYWZlX3R5cGVkKGludCAqX05vbm51bGwgZGF0YSkgewogICpkYXRhID0gNDI7IC8vIE9LIC0gd2Uga25vdyBkYXRhIGlzIG5vdCBudWxsIHNvIHdlIGNhbiBkZXJlZmVybmNlIGl0Cn0%3D)
+
 
 ## Installation
-
-### Prerequisites
-
-**macOS:**
-```bash
-brew install zstd
-xcode-select --install  # If not already installed
-```
 
 ### Quick Install
 
@@ -49,6 +57,12 @@ curl -fsSL https://raw.githubusercontent.com/cs01/llvm-project/null-safe-c-dev/i
 ```
 
 Or download manually from [releases](https://github.com/cs01/llvm-project/releases).
+
+On mac you may need to do the following:
+```bash
+brew install zstd
+xcode-select --install  # If not already installed
+```
 
 ### Windows
 
@@ -62,7 +76,7 @@ Each release includes:
 
 ### IDE Integration
 
-Once installed, configure your editor to use the null-safe `clangd`:
+Once installed, configure your editor to use the null-safe `clangd`. Install the `clangd` extension from llvm and set the path to the clangd binary you just downloaded.
 
 **VSCode:**
 ```json

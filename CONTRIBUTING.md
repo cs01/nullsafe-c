@@ -5,9 +5,18 @@ Development branch: `null-safe-c-dev`
 ## Building
 
 ### Standard (x86)
+
+**Clang only:**
 ```bash
 mkdir build && cd build
 cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_PROJECTS="clang" ../llvm
+ninja clang
+```
+
+**Clang + clangd (language server):**
+```bash
+mkdir build && cd build
+cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" ../llvm
 ninja clang clangd
 ```
 
@@ -36,7 +45,9 @@ ninja clang
 
 ## Testing
 ```bash
-build/bin/llvm-lit -v clang/test/Sema/strict-nullability.c
+cd build
+ninja FileCheck count not split-file llvm-config
+./bin/llvm-lit -v ../clang/test/Sema/strict-nullability.c
 ```
 
 ## Releases

@@ -47,3 +47,18 @@ void test_no_invalidation_without_calls(int* p) {
     }
 }
 
+int is_valid(const char c);
+
+void test_const_param_preserves_narrowing(const char* data) {
+    if (!data) return;
+    const int isvalid = is_valid(*data);
+    char val = *data;  // OK - narrowing preserved by const parameter
+}
+
+void test_const_param_multiple_calls(const int* value) {
+    if (!value) return;
+    int copy1 = *value;  // OK
+    is_valid((char)*value);
+    int copy2 = *value;  // OK - narrowing preserved, parameter is const
+}
+
