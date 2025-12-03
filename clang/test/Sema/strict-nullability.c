@@ -16,8 +16,6 @@ void takes_nonnull(int * _Nonnull p) {
 void takes_nullable(int* p) {
     if (p) {// Need null check for nullable
         *p = 42;
-        // TODO: Invalidate narrowing after function calls that could modify the pointer
-        // (see Phase 4 - narrowing invalidation)
         *p = 23;
     } else {
         *p=7;  // expected-warning{{dereferencing nullable pointer of type 'int * _Nullable'}}
