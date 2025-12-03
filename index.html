@@ -564,20 +564,13 @@
         </button>
 
         <select id="examplesSelect" class="examples-select" title="Load example code to see Nullsafe C in action">
-            <option value="null-check" selected>1. Basic Null Check</option>
-            <option value="early-return">2. Early Return Pattern</option>
-            <option value="pure-function">3. Const Functions Preserve Narrowing</option>
-            <option value="function-invalidates">4. Function Invalidates Narrowing</option>
+            <option value="null-check" selected>1. Raw pointer Dereference</option>
+            <option value="early-return">2. Early Return</option>
+            <option value="and-pattern">3. AND Pattern Narrowing</option>
+            <option value="else-branch">4. Else Branch Narrowing</option>
             <option value="nonnull-annotation">5. _Nonnull Annotations</option>
-            <option value="multi-level">6. Multi-Level Pointers</option>
-            <option value="and-pattern">7. AND Pattern Narrowing</option>
-            <option value="else-branch">8. Else Branch Narrowing</option>
-            <option value="loop-narrowing">9. Loop Condition Narrowing</option>
-            <option value="dereference-context">10. Null Check Before Deref</option>
-            <optgroup label="Real-World Bugs">
-                <option value="redis-sds">11. Redis: sdssetlen() pointer arithmetic</option>
-                <option value="cjson-escape">12. cJSON: print_string_ptr() escaping</option>
-            </optgroup>
+            <option value="function-invalidates">6. Function Invalidates Narrowing</option>
+            <option value="multi-level">7. Multi-Level Pointers</option>
         </select>
 
         <button id="shareBtn" class="btn btn-secondary" title="Copy a shareable link with your code to clipboard">
