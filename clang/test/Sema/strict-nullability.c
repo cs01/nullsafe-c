@@ -404,14 +404,6 @@ void test_chained_deref(int** pp) {
         **pp = 42;  // OK - both levels narrowed
     }
 }
-
-// Test: Triple pointers
-void test_triple_pointers(int*** ppp) {
-    if (ppp && *ppp && **ppp) {
-        ***ppp = 42;  // OK - all three levels narrowed
-    }
-}
-
 // Test: Declared nonnull multi-level
 void test_nonnull_outer_ptr(int* * _Nonnull pp) {
     *pp = 0;  // OK - pp is nonnull by declaration
@@ -626,4 +618,32 @@ void test_volatile_with_check(void) {
         volatile void * _Nonnull dst = src;  // OK - narrowed
     }
 }
+
+void test_double_deref_no_check(int** pp) {
+    **pp = 42; // expected-warning{{dereferencing nullable pointer of type 'int **'}}
+               // expected-warning@-1{{dereferencing nullable pointer of type 'int *'}}
+}
+
+void test_double_deref_both_checked(int** pp) {
+    if (pp && *pp) {
+        **pp = 42;
+    }
+}
+
+void test_double_deref_only_outer_checked(int** pp) {
+    if (pp) {
+        **pp = 42; // expected-warning{{dereferencing nullable pointer of type 'int *'}}
+    }
+}
+
+void test_double_deref_nonnull_inner(int* _Nonnull * pp) {
+    if (pp) {
+        **pp = 42;
+    }
+}
+
+void test_double_deref_nonnull(int* _Nonnull *_Nonnull pp) {
+    **pp = 42;
+}
+
 

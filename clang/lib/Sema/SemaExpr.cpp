@@ -14900,22 +14900,30 @@ static QualType CheckIndirectionOperand(Sema &S, Expr *Op, ExprValueKind &VK,
       if (const auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
         QualType NarrowedType = S.GetNarrowedType(VD);
         if (!NarrowedType.isNull()) {
-          // Use the narrowed type for nullability checking
           CheckType = NarrowedType;
         }
       }
     }
-    // strict-nullability: Also check if this is an increment/decrement of a narrowed variable
-    // For *p++, Op is the UnaryOperator(++), and its sub-expression is the variable
     else if (const auto *UO = dyn_cast<UnaryOperator>(Op->IgnoreParenImpCasts())) {
-      if (UO->getOpcode() == UO_PostInc || UO->getOpcode() == UO_PreInc ||
+      if (UO->getOpcode() == UO_Deref) {
+        Expr *DerefSubExpr = UO->getSubExpr()->IgnoreParenImpCasts();
+        if (const auto *DRE = dyn_cast<DeclRefExpr>(DerefSubExpr)) {
+          if (const auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+            QualType NarrowedType = S.GetNarrowedType(VD);
+            if (!NarrowedType.isNull()) {
+              if (const PointerType *PT = NarrowedType->getAs<PointerType>()) {
+                CheckType = PT->getPointeeType();
+              }
+            }
+          }
+        }
+      }
+      else if (UO->getOpcode() == UO_PostInc || UO->getOpcode() == UO_PreInc ||
           UO->getOpcode() == UO_PostDec || UO->getOpcode() == UO_PreDec) {
-        // Get the variable being incremented/decremented
         if (const auto *DRE = dyn_cast<DeclRefExpr>(UO->getSubExpr()->IgnoreParenImpCasts())) {
           if (const auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
             QualType NarrowedType = S.GetNarrowedType(VD);
             if (!NarrowedType.isNull()) {
-              // The result of p++ is the old value of p, which had the narrowed type
               CheckType = NarrowedType;
             }
           }
@@ -14923,12 +14931,10 @@ static QualType CheckIndirectionOperand(Sema &S, Expr *Op, ExprValueKind &VK,
       }
     }
 
-    if (auto Nullability = CheckType->getNullability()) {
-      if (*Nullability == NullabilityKind::Nullable) {
-        // strict-nullability: Warn about dereferencing nullable pointers.
-        // Dereferencing does NOT perform a null-check - it will crash if null!
-        S.Diag(OpLoc, diag::warn_strict_nullability_dereference) << OpTy;
-      }
+    auto Nullability = CheckType->getNullability();
+    if (!Nullability || *Nullability == NullabilityKind::Nullable ||
+        *Nullability == NullabilityKind::Unspecified) {
+      S.Diag(OpLoc, diag::warn_strict_nullability_dereference) << OpTy;
     }
   }
 

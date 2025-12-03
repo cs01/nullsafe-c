@@ -729,24 +729,69 @@ void Sema::NarrowVariableToNonNull(const VarDecl *VD) {
     return;
 
   QualType OrigType = VD->getType();
-  std::optional<NullabilityKind> Nullability = OrigType->getNullability();
 
-  // Only narrow if the type is nullable
-  if (!Nullability || *Nullability != NullabilityKind::Nullable)
+  QualType CurrentType = GetNarrowedType(VD);
+  if (CurrentType.isNull())
+    CurrentType = OrigType;
+
+  std::optional<NullabilityKind> Nullability = CurrentType->getNullability();
+
+  if (Nullability && *Nullability == NullabilityKind::NonNull)
     return;
 
-  // Strip the existing nullability attribute first
-  QualType BaseType = OrigType;
+  QualType BaseType = CurrentType;
   (void)AttributedType::stripOuterNullability(BaseType);
 
-  // Create a non-null version of the type
   QualType NarrowedType = Context.getAttributedType(
       NullabilityKind::NonNull,
       BaseType,
       BaseType);
 
-  // Store it in the current scope
   NullabilityNarrowingScopes.back()[VD] = NarrowedType;
+}
+
+void Sema::NarrowVariablePointeeToNonNull(const VarDecl *VD) {
+  if (!getLangOpts().StrictNullability)
+    return;
+  if (!VD || NullabilityNarrowingScopes.empty())
+    return;
+
+  QualType CurrentType = GetNarrowedType(VD);
+  if (CurrentType.isNull())
+    CurrentType = VD->getType();
+
+  const PointerType *PtrType = CurrentType->getAs<PointerType>();
+  if (!PtrType)
+    return;
+
+  QualType PointeeType = PtrType->getPointeeType();
+  std::optional<NullabilityKind> PointeeNullability = PointeeType->getNullability();
+
+  if (PointeeNullability && *PointeeNullability == NullabilityKind::NonNull)
+    return;
+
+  QualType PointeeBase = PointeeType;
+  (void)AttributedType::stripOuterNullability(PointeeBase);
+
+  QualType NarrowedPointee = Context.getAttributedType(
+      NullabilityKind::NonNull,
+      PointeeBase,
+      PointeeBase);
+
+  std::optional<NullabilityKind> OuterNullability = CurrentType->getNullability();
+  QualType OuterBase = CurrentType;
+  (void)AttributedType::stripOuterNullability(OuterBase);
+
+  QualType NewPointerType = Context.getPointerType(NarrowedPointee);
+
+  if (OuterNullability) {
+    NewPointerType = Context.getAttributedType(
+        *OuterNullability,
+        NewPointerType,
+        NewPointerType);
+  }
+
+  NullabilityNarrowingScopes.back()[VD] = NewPointerType;
 }
 
 QualType Sema::GetNarrowedType(const VarDecl *VD) const {
@@ -826,10 +871,23 @@ const VarDecl* Sema::AnalyzeConditionForNullCheck(Expr *Cond, bool &IsNegated) {
     }
   }
 
+  // Handle: *ptr (dereferenced pointer)
+  if (auto *UO = dyn_cast<UnaryOperator>(E)) {
+    if (UO->getOpcode() == UO_Deref) {
+      Expr *SubExpr = UO->getSubExpr()->IgnoreParenImpCasts();
+      if (auto *DRE = dyn_cast<DeclRefExpr>(SubExpr)) {
+        if (auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+          if (VD->getType()->isPointerType()) {
+            return VD;
+          }
+        }
+      }
+    }
+  }
+
   // Handle: ptr (implicit boolean conversion)
   if (auto *DRE = dyn_cast<DeclRefExpr>(E)) {
     if (auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-      // Check if this is a pointer type
       if (VD->getType()->isPointerType()) {
         return VD;
       }
@@ -882,20 +940,52 @@ void Sema::CollectAndCheckedVariables(Expr *Cond,
   // Check if this is an AND expression
   if (auto *BO = dyn_cast<BinaryOperator>(E)) {
     if (BO->getOpcode() == BO_LAnd) {
-      // Recursively collect from both sides of the AND
       CollectAndCheckedVariables(BO->getLHS(), Vars);
       CollectAndCheckedVariables(BO->getRHS(), Vars);
       return;
     }
   }
 
-  // Otherwise, check if this is a simple non-negated null check
   bool IsNegated = false;
   const VarDecl *VD = AnalyzeConditionForNullCheck(Cond, IsNegated);
 
-  // For AND patterns like "p && q", we want non-negated checks
   if (VD && !IsNegated) {
     Vars.push_back(VD);
+  }
+}
+
+void Sema::CollectAndCheckedDereferences(Expr *Cond,
+                                          SmallVectorImpl<const VarDecl*> &Vars) {
+  if (!Cond)
+    return;
+
+  Expr *E = Cond->IgnoreParenImpCasts();
+
+  if (auto *BO = dyn_cast<BinaryOperator>(E)) {
+    if (BO->getOpcode() == BO_LAnd) {
+      CollectAndCheckedDereferences(BO->getLHS(), Vars);
+      CollectAndCheckedDereferences(BO->getRHS(), Vars);
+      return;
+    }
+  }
+
+  if (auto *UO = dyn_cast<UnaryOperator>(E)) {
+    if (UO->getOpcode() == UO_LNot) {
+      E = UO->getSubExpr()->IgnoreParenImpCasts();
+    }
+  }
+
+  if (auto *UO = dyn_cast<UnaryOperator>(E)) {
+    if (UO->getOpcode() == UO_Deref) {
+      Expr *SubExpr = UO->getSubExpr()->IgnoreParenImpCasts();
+      if (auto *DRE = dyn_cast<DeclRefExpr>(SubExpr)) {
+        if (auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+          if (VD->getType()->isPointerType()) {
+            Vars.push_back(VD);
+          }
+        }
+      }
+    }
   }
 }
 

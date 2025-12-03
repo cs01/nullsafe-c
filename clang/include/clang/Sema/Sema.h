@@ -1184,6 +1184,8 @@ public:
   /// strict-nullability: Narrow a variable's type to non-null in the current scope.
   void NarrowVariableToNonNull(const VarDecl *VD);
 
+  void NarrowVariablePointeeToNonNull(const VarDecl *VD);
+
   /// strict-nullability: Get the narrowed type for a variable, if any.
   /// Returns the narrowed type if the variable has been narrowed in the
   /// current scope, otherwise returns an empty QualType.
@@ -1205,6 +1207,9 @@ public:
   /// This is used for AND-expression narrowing.
   void CollectAndCheckedVariables(Expr *Cond,
                                   SmallVectorImpl<const VarDecl*> &Vars);
+
+  void CollectAndCheckedDereferences(Expr *Cond,
+                                     SmallVectorImpl<const VarDecl*> &Vars);
 
   /// strict-nullability: Check if a condition expression contains any function calls.
   /// This is used to determine if it's safe to apply narrowing from a condition,

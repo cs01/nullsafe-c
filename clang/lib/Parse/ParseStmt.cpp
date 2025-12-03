@@ -1557,7 +1557,13 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
     for (const VarDecl *VD : Actions.AndExprCheckedVars) {
       Actions.NarrowVariableToNonNull(VD);
     }
-    Actions.AndExprCheckedVars.clear();  // Consume the list
+    Actions.AndExprCheckedVars.clear();
+
+    SmallVector<const VarDecl*, 8> DerefCheckedVars;
+    Actions.CollectAndCheckedDereferences(Cond.get().second, DerefCheckedVars);
+    for (const VarDecl *VD : DerefCheckedVars) {
+      Actions.NarrowVariablePointeeToNonNull(VD);
+    }
 
     // Also narrow the traditional null-checked variable (but not if condition has calls)
     if (CheckedVar && !IsNegatedCheck && !ConditionHasCalls) {
@@ -1900,6 +1906,12 @@ StmtResult Parser::ParseWhileStatement(SourceLocation *TrailingElseLoc,
     Actions.CollectAndCheckedVariables(Cond.get().second, AndCheckedVars);
     for (const VarDecl *VD : AndCheckedVars) {
       Actions.NarrowVariableToNonNull(VD);
+    }
+
+    SmallVector<const VarDecl*, 8> DerefCheckedVars;
+    Actions.CollectAndCheckedDereferences(Cond.get().second, DerefCheckedVars);
+    for (const VarDecl *VD : DerefCheckedVars) {
+      Actions.NarrowVariablePointeeToNonNull(VD);
     }
 
     // Handle dereferences in condition: while (*p == 'x')
@@ -2407,6 +2419,12 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc,
     Actions.CollectAndCheckedVariables(SecondPart.get().second, AndCheckedVars);
     for (const VarDecl *VD : AndCheckedVars) {
       Actions.NarrowVariableToNonNull(VD);
+    }
+
+    SmallVector<const VarDecl*, 8> DerefCheckedVars;
+    Actions.CollectAndCheckedDereferences(SecondPart.get().second, DerefCheckedVars);
+    for (const VarDecl *VD : DerefCheckedVars) {
+      Actions.NarrowVariablePointeeToNonNull(VD);
     }
 
     // Handle dereferences in condition: for (; *p == 'x'; )
